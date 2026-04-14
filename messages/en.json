@@ -1,0 +1,56 @@
+{
+  "meta": {
+    "title": "Tayfun Türkmen — Web & Security",
+    "description": "Personal site and blog on web development, architecture, and cybersecurity."
+  },
+  "nav": {
+    "home": "Home",
+    "blog": "Blog",
+    "about": "About",
+    "studio": "Studio",
+    "rss": "RSS"
+  },
+  "home": {
+    "badge": "Web · Cybersecurity · Craft",
+    "headline": "Building resilient web systems with security in the blueprint.",
+    "sub": "Notes on modern frontends, platform engineering, and defensive design — in English and Turkish.",
+    "ctaBlog": "Read the blog",
+    "ctaAbout": "About me",
+    "pillarsTitle": "What you will find here",
+    "pillar1Title": "Web development",
+    "pillar1Body": "Performance, DX, and maintainable architecture — not hype-driven stacks.",
+    "pillar2Title": "Cybersecurity",
+    "pillar2Body": "Threat modeling, hardening, and practical controls for real-world apps.",
+    "pillar3Title": "Automation",
+    "pillar3Body": "A guarded auto-blogger pipeline: AI drafts only when secrets are set, never trusted as source of truth."
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "Essays and field notes. Newest first.",
+    "empty": "No posts in this language yet.",
+    "read": "Read",
+    "topics": "Topics",
+    "back": "Back to blog"
+  },
+  "about": {
+    "title": "About",
+    "body": "I am Tayfun Türkmen. This site is my controlled surface on the open web: static-first content, strict headers, and optional AI assistance behind a shared secret — never exposed to anonymous clients."
+  },
+  "footer": {
+    "rights": "All rights reserved.",
+    "built": "Built with Next.js. Content is Markdown on disk; automation is opt-in."
+  },
+  "autoBlog": {
+    "title": "Auto-blogger (secured)",
+    "lead": "Generate a draft article as Markdown. Requires server environment variables; requests without the correct bearer token are rejected.",
+    "topic": "Topic",
+    "topicPlaceholder": "e.g. CSP pitfalls in Next.js App Router",
+    "generate": "Generate draft",
+    "result": "Result",
+    "copy": "Copy Markdown",
+    "unauthorized": "This panel is disabled until AUTO_BLOG_PANEL_SECRET is configured and you sign in with it.",
+    "signIn": "Unlock panel",
+    "secretLabel": "Panel secret",
+    "hint": "Set AUTO_BLOG_PANEL_SECRET in .env.local. For AI output, add OPENAI_API_KEY. The public API uses Authorization: Bearer AUTO_BLOG_SECRET."
+  }
+}

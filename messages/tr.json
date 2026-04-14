@@ -1,0 +1,56 @@
+{
+  "meta": {
+    "title": "Tayfun Türkmen — Web ve Güvenlik",
+    "description": "Kişisel site ve blog: web geliştirme, mimari ve siber güvenlik."
+  },
+  "nav": {
+    "home": "Ana sayfa",
+    "blog": "Blog",
+    "about": "Hakkımda",
+    "studio": "Stüdyo",
+    "rss": "RSS"
+  },
+  "home": {
+    "badge": "Web · Siber güvenlik · Ustalık",
+    "headline": "Güvenliği tasarımın içine gömerek dayanıklı web sistemleri kurmak.",
+    "sub": "Modern arayüzler, platform mühendisliği ve savunmacı tasarım üzerine notlar — İngilizce ve Türkçe.",
+    "ctaBlog": "Blogu oku",
+    "ctaAbout": "Hakkımda",
+    "pillarsTitle": "Burada neler var",
+    "pillar1Title": "Web geliştirme",
+    "pillar1Body": "Performans, geliştirici deneyimi ve sürdürülebilir mimari — moda stack avcılığı değil.",
+    "pillar2Title": "Siber güvenlik",
+    "pillar2Body": "Tehdit modelleme, sertleştirme ve gerçek uygulamalar için pratik kontroller.",
+    "pillar3Title": "Otomasyon",
+    "pillar3Body": "Korumalı otomatik blog hattı: yapay zekâ taslağı yalnızca gizli anahtarlar tanımlandığında; asla tek doğruluk kaynağı değil."
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "Denemeler ve saha notları. En yeniler üstte.",
+    "empty": "Bu dilde henüz yazı yok.",
+    "read": "Oku",
+    "topics": "Konular",
+    "back": "Bloga dön"
+  },
+  "about": {
+    "title": "Hakkımda",
+    "body": "Ben Tayfun Türkmen. Bu site, açık webde kontrollü yüzeyim: statik öncelikli içerik, sıkı başlıklar ve paylaşılan bir gizli anahtarın arkasında isteğe bağlı yapay zekâ — anonim istemcilere asla açık değil."
+  },
+  "footer": {
+    "rights": "Tüm hakları saklıdır.",
+    "built": "Next.js ile. İçerik diskte Markdown; otomasyon isteğe bağlı."
+  },
+  "autoBlog": {
+    "title": "Otomatik blog (güvenli)",
+    "lead": "Markdown taslağı üretir. Sunucu ortam değişkenleri gerekir; doğru bearer token olmayan istekler reddedilir.",
+    "topic": "Konu",
+    "topicPlaceholder": "ör. Next.js App Routerda CSP tuzakları",
+    "generate": "Taslak üret",
+    "result": "Sonuç",
+    "copy": "Markdown kopyala",
+    "unauthorized": "AUTO_BLOG_PANEL_SECRET tanımlanana ve onunla oturum açana kadar bu panel kapalı.",
+    "signIn": "Paneli aç",
+    "secretLabel": "Panel gizli anahtarı",
+    "hint": ".env.local içinde AUTO_BLOG_PANEL_SECRET ayarlayın. Yapay zekâ çıktısı için OPENAI_API_KEY ekleyin. Genel API: Authorization: Bearer AUTO_BLOG_SECRET."
+  }
+}
