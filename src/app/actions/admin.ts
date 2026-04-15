@@ -1,13 +1,13 @@
 "use server";
 
-import { generateDraft } from "@/lib/auto-blog";
-import { registerInitialAdmin, upsertBlogPost, verifyAdminUser } from "@/lib/d1";
+import { generateDraft, translateDraft, type GeneratedDraft, type LocaleCode } from "@/lib/auto-blog";
+import { registerInitialAdmin, savePublicSiteSettings, upsertBlogPost, verifyAdminUser } from "@/lib/d1";
 import { cookies } from "next/headers";
 
 const COOKIE = "admin_ok";
 
 export type AdminResult =
-  | { ok: true; message: "saved" | "unlocked" | "registered" | "bulkSaved" }
+  | { ok: true; message: "saved" | "unlocked" | "registered" | "bulkSaved" | "settingsSaved" }
   | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" };
 
 export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
@@ -60,6 +60,53 @@ function toSlug(value: string) {
     .slice(0, 120);
 }
 
+function pairLocale(locale: LocaleCode): LocaleCode {
+  return locale === "en" ? "tr" : "en";
+}
+
+async function saveTwoLocales(params: {
+  baseLocale: LocaleCode;
+  draft: GeneratedDraft;
+  published: boolean;
+  scheduleDate: string | null;
+  baseSlug?: string;
+}) {
+  const { baseLocale, draft, published, scheduleDate, baseSlug } = params;
+  const targetLocale = pairLocale(baseLocale);
+  const translated = await translateDraft(draft, baseLocale, targetLocale);
+  const scheduledFor = scheduleDate ? `${scheduleDate}T09:00:00Z` : null;
+
+  const primaryOk = await upsertBlogPost({
+    slug: baseSlug ?? toSlug(draft.title),
+    locale: baseLocale,
+    title: draft.title,
+    excerpt: draft.excerpt,
+    content: draft.content,
+    tags: draft.tags,
+    published,
+    scheduledFor,
+    metaTitle: draft.seoTitle,
+    metaDescription: draft.seoDescription,
+  });
+  if (!primaryOk) return false;
+
+  const translatedOk = await upsertBlogPost({
+    slug: toSlug(translated.title),
+    locale: targetLocale,
+    title: translated.title,
+    excerpt: translated.excerpt,
+    content: translated.content,
+    tags: translated.tags,
+    published,
+    scheduledFor,
+    metaTitle: translated.seoTitle,
+    metaDescription: translated.seoDescription,
+  });
+  if (!translatedOk) return false;
+
+  return true;
+}
+
 export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
   const jar = await cookies();
   if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
@@ -75,23 +122,29 @@ export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
   const content = String(formData.get("content") ?? "").trim();
   const published = String(formData.get("published") ?? "") === "on";
   const scheduleDate = String(formData.get("scheduleDate") ?? "").trim();
-  const slug = toSlug(rawSlug || title);
-
-  if (!slug || !title || !content || (locale !== "en" && locale !== "tr")) {
+  if (!title || !content || (locale !== "en" && locale !== "tr")) {
     return { ok: false, error: "invalid" };
   }
 
-  const ok = await upsertBlogPost({
-    slug,
-    locale,
+  const baseLocale = locale as LocaleCode;
+  const sourceDraft: GeneratedDraft = {
     title,
     excerpt,
     content,
     tags,
+    seoTitle: title,
+    seoDescription: excerpt,
+  };
+
+  const manualSlug = toSlug(rawSlug || title);
+  if (!manualSlug) return { ok: false, error: "invalid" };
+
+  const ok = await saveTwoLocales({
+    baseLocale,
+    draft: sourceDraft,
     published,
-    scheduledFor: scheduleDate ? `${scheduleDate}T09:00:00Z` : null,
-    metaTitle: title,
-    metaDescription: excerpt,
+    scheduleDate: scheduleDate || null,
+    baseSlug: manualSlug,
   });
   if (!ok) return { ok: false, error: "db" };
 
@@ -123,29 +176,43 @@ export async function generateBulkAiDrafts(formData: FormData): Promise<AdminRes
   }
 
   const baseDate = startDateRaw ? new Date(`${startDateRaw}T09:00:00Z`) : new Date();
+  const baseLocale = locale as LocaleCode;
 
   for (let i = 0; i < topics.length; i += 1) {
     const topic = topics[i];
-    const draft = await generateDraft({ topic, locale });
-    const slug = toSlug(topic);
-    const planned = addDays(baseDate, i * Math.max(1, intervalDays))
+    const draft = await generateDraft({ topic, locale: baseLocale });
+    const plannedDate = addDays(baseDate, i * Math.max(1, intervalDays))
       .toISOString()
-      .slice(0, 19) + "Z";
+      .slice(0, 10);
 
-    const ok = await upsertBlogPost({
-      slug,
-      locale,
-      title: draft.title,
-      excerpt: draft.excerpt,
-      content: draft.content,
-      tags: draft.tags,
+    const ok = await saveTwoLocales({
+      baseLocale,
+      draft,
       published: false,
-      scheduledFor: planned,
-      metaTitle: draft.seoTitle,
-      metaDescription: draft.seoDescription,
+      scheduleDate: plannedDate,
     });
     if (!ok) return { ok: false, error: "db" };
   }
 
   return { ok: true, message: "bulkSaved" };
+}
+
+export async function saveMarketingSettings(formData: FormData): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  const adsenseClient = String(formData.get("adsenseClient") ?? "").trim() || null;
+  const analyticsMeasurementId =
+    String(formData.get("analyticsMeasurementId") ?? "").trim() || null;
+  const adSlotBlogList = String(formData.get("adSlotBlogList") ?? "").trim() || null;
+  const adSlotBlogPost = String(formData.get("adSlotBlogPost") ?? "").trim() || null;
+
+  const ok = await savePublicSiteSettings({
+    adsenseClient,
+    analyticsMeasurementId,
+    adSlotBlogList,
+    adSlotBlogPost,
+  });
+  if (!ok) return { ok: false, error: "db" };
+  return { ok: true, message: "settingsSaved" };
 }

@@ -14,7 +14,7 @@
     "rss": "RSS"
   },
   "home": {
-    "badge": "Web · Siber güvenlik · Ustalık",
+    "badge": "Web · Siber güvenlik · Sanat",
     "headline": "Siber güvenlik ve full-stack geliştirmeyi sahadaki uygulama ile birleştirmek.",
     "sub": "LinkedIn profilime dayalı özet: Antalya'da Yaşam Hastaneler Grubu'nda IT Staff olarak çalışıyorum ve notlarımı İngilizce/Türkçe paylaşıyorum.",
     "ctaBlog": "Blogu oku",
@@ -90,6 +90,14 @@
     "bulkLead": "Konu listesinden birden fazla zamanlanmış taslak üretin.",
     "bulkGenerate": "Üret ve zamanla",
     "bulkSaved": "Toplu taslaklar üretildi ve zamanlandı.",
+    "marketingTitle": "AdSense ve Analytics ayarları",
+    "marketingLead": "Reklam ve analiz kimliklerini panelden yönetin (D1 içinde saklanır).",
+    "adsenseClient": "AdSense client",
+    "analyticsId": "Google Analytics kimliği (GA4)",
+    "adSlotBlogList": "Blog liste reklam slotu",
+    "adSlotBlogPost": "Blog yazı reklam slotu",
+    "saveSettings": "Ayarları kaydet",
+    "settingsSaved": "Ayarlar güncellendi.",
     "saved": "Yazı kaydedildi.",
     "error": "Yazı kaydedilemedi.",
     "slug": "Slug",

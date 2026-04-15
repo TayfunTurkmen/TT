@@ -1,6 +1,7 @@
 import { AdSlot } from "@/components/AdSlot";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { Link } from "@/i18n/routing";
+import { getPublicSiteSettings } from "@/lib/d1";
 import { getPost } from "@/lib/posts";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
@@ -47,6 +48,7 @@ export default async function BlogPostPage({ params }: Props) {
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "blog" });
   const post = await getPost(locale, slug);
+  const settings = await getPublicSiteSettings();
   if (!post) notFound();
   const canonical = `https://tayfunturkmen.com/${locale}/blog/${slug}`;
   const jsonLd = {
@@ -95,7 +97,11 @@ export default async function BlogPostPage({ params }: Props) {
         <MarkdownContent markdown={post.content} />
       </div>
       <div className="mt-10">
-        <AdSlot slot="1234567891" format="auto" />
+        <AdSlot
+          client={settings.adsenseClient}
+          slot={settings.adSlotBlogPost}
+          format="auto"
+        />
       </div>
     </article>
   );

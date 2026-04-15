@@ -2,6 +2,7 @@
 
 import {
   generateBulkAiDrafts,
+  saveMarketingSettings,
   saveAdminPost,
   setupInitialAdmin,
   unlockAdmin,
@@ -23,11 +24,18 @@ export function AdminPanel({
   hasAdminUser,
   unlocked,
   initialPosts,
+  initialSettings,
 }: {
   enabled: boolean;
   hasAdminUser: boolean;
   unlocked: boolean;
   initialPosts: AdminPost[];
+  initialSettings: {
+    adsenseClient: string;
+    analyticsMeasurementId: string;
+    adSlotBlogList: string;
+    adSlotBlogPost: string;
+  };
 }) {
   const t = useTranslations("admin");
   const locale = useLocale();
@@ -135,6 +143,65 @@ export function AdminPanel({
         </form>
       ) : (
         <>
+          <form
+            className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
+            action={(fd) => {
+              setMessage(null);
+              start(async () => {
+                const res = await saveMarketingSettings(fd);
+                setMessage(res.ok ? t("settingsSaved") : t("error"));
+              });
+            }}
+          >
+            <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+              {t("marketingTitle")}
+            </h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">{t("marketingLead")}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm text-[var(--muted)]">
+                {t("adsenseClient")}
+                <input
+                  name="adsenseClient"
+                  defaultValue={initialSettings.adsenseClient}
+                  placeholder="ca-pub-xxxxxxxxxxxxxxxx"
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
+              <label className="text-sm text-[var(--muted)]">
+                {t("analyticsId")}
+                <input
+                  name="analyticsMeasurementId"
+                  defaultValue={initialSettings.analyticsMeasurementId}
+                  placeholder="G-XXXXXXXXXX"
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
+              <label className="text-sm text-[var(--muted)]">
+                {t("adSlotBlogList")}
+                <input
+                  name="adSlotBlogList"
+                  defaultValue={initialSettings.adSlotBlogList}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
+              <label className="text-sm text-[var(--muted)]">
+                {t("adSlotBlogPost")}
+                <input
+                  name="adSlotBlogPost"
+                  defaultValue={initialSettings.adSlotBlogPost}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
+            </div>
+            <button
+              type="submit"
+              disabled={pending}
+              className="mt-4 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {t("saveSettings")}
+            </button>
+          </form>
+
           <form
             className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
             action={(fd) => {

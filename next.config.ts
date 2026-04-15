@@ -13,8 +13,8 @@ const csp = [
   "img-src 'self' data: https:",
   "font-src 'self' https://fonts.gstatic.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  `script-src 'self' https://pagead2.googlesyndication.com${isProd ? "" : " 'unsafe-eval'"}`,
-  "connect-src 'self' https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net",
+  `script-src 'self' https://pagead2.googlesyndication.com https://www.googletagmanager.com${isProd ? "" : " 'unsafe-eval'"}`,
+  "connect-src 'self' https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com",
   "frame-src https://googleads.g.doubleclick.net https://tpc.googlesyndication.com",
   "upgrade-insecure-requests",
 ].join("; ");

@@ -15,6 +15,8 @@ export type GeneratedDraft = {
   seoDescription: string;
 };
 
+export type LocaleCode = "en" | "tr";
+
 function slugify(topic: string): string {
   const base = topic
     .toLowerCase()
@@ -123,4 +125,78 @@ export async function generateDraft(input: GenerateInput): Promise<GeneratedDraf
     seoTitle: input.topic.length > 58 ? `${input.topic.slice(0, 55)}...` : input.topic,
     seoDescription: excerpt,
   };
+}
+
+type ModelContext = {
+  openai: ReturnType<typeof createOpenAI>;
+  modelName: string;
+};
+
+function getModelContext(): ModelContext | null {
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  if (!openaiKey && !openrouterKey) return null;
+
+  const openai = openrouterKey
+    ? createOpenAI({
+        apiKey: openrouterKey,
+        baseURL: "https://openrouter.ai/api/v1",
+      })
+    : createOpenAI({ apiKey: openaiKey! });
+
+  const modelName = openrouterKey
+    ? process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat-v3-0324:free"
+    : "gpt-4o-mini";
+
+  return { openai, modelName };
+}
+
+export async function translateDraft(
+  source: GeneratedDraft,
+  fromLocale: LocaleCode,
+  toLocale: LocaleCode,
+): Promise<GeneratedDraft> {
+  if (fromLocale === toLocale) return source;
+  const model = getModelContext();
+  if (!model) {
+    return {
+      ...source,
+      title: `[${toLocale.toUpperCase()}] ${source.title}`,
+      excerpt: source.excerpt,
+      seoTitle: `[${toLocale.toUpperCase()}] ${source.seoTitle}`,
+      seoDescription: source.seoDescription,
+    };
+  }
+
+  const toLanguage = toLocale === "tr" ? "Turkish" : "English";
+  const fromLanguage = fromLocale === "tr" ? "Turkish" : "English";
+
+  const { text } = await generateText({
+    model: model.openai(model.modelName),
+    system:
+      "You are a precise technical translator for web development and cybersecurity content. Return STRICT JSON with keys: title, excerpt, content, seoTitle, seoDescription. Keep markdown in content. Preserve meaning, examples, and technical terms.",
+    prompt: `Translate from ${fromLanguage} to ${toLanguage}.\n\nSOURCE_JSON:\n${JSON.stringify(
+      source,
+    )}`,
+    maxOutputTokens: 2500,
+  });
+
+  try {
+    const parsed = JSON.parse(text.trim()) as Partial<GeneratedDraft>;
+    return {
+      title: parsed.title?.trim() || source.title,
+      excerpt: parsed.excerpt?.trim() || source.excerpt,
+      content: parsed.content?.trim() || source.content,
+      tags: source.tags,
+      seoTitle: parsed.seoTitle?.trim() || parsed.title?.trim() || source.seoTitle,
+      seoDescription:
+        parsed.seoDescription?.trim() || parsed.excerpt?.trim() || source.seoDescription,
+    };
+  } catch {
+    return {
+      ...source,
+      title: `[${toLocale.toUpperCase()}] ${source.title}`,
+      seoTitle: `[${toLocale.toUpperCase()}] ${source.seoTitle}`,
+    };
+  }
 }

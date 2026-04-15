@@ -36,6 +36,18 @@ type AdminUserRow = {
   salt: string;
 };
 
+type SiteSettingRow = {
+  setting_key: string;
+  setting_value: string;
+};
+
+export type PublicSiteSettings = {
+  adsenseClient: string | null;
+  analyticsMeasurementId: string | null;
+  adSlotBlogList: string;
+  adSlotBlogPost: string;
+};
+
 function getDb(): D1Like | null {
   try {
     const { env } = getCloudflareContext();
@@ -66,6 +78,13 @@ export async function ensureD1Schema() {
     await db
       .prepare(
         "CREATE TABLE IF NOT EXISTS admin_users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, salt TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+      )
+      .bind()
+      .run();
+
+    await db
+      .prepare(
+        "CREATE TABLE IF NOT EXISTS site_settings (setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
       )
       .bind()
       .run();
@@ -363,5 +382,80 @@ export async function autoPublishScheduledPosts(limit = 20): Promise<number> {
     return rows.results.length;
   } catch {
     return 0;
+  }
+}
+
+function normalizeNullable(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+}
+
+function parseSiteSettings(rows: SiteSettingRow[]): PublicSiteSettings {
+  const map = new Map(rows.map((row) => [row.setting_key, row.setting_value]));
+  const envAds = normalizeNullable(process.env.NEXT_PUBLIC_ADSENSE_CLIENT);
+  const envGa = normalizeNullable(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID);
+  return {
+    adsenseClient: normalizeNullable(map.get("adsenseClient")) ?? envAds,
+    analyticsMeasurementId:
+      normalizeNullable(map.get("analyticsMeasurementId")) ?? envGa,
+    adSlotBlogList: normalizeNullable(map.get("adSlotBlogList")) ?? "1234567890",
+    adSlotBlogPost: normalizeNullable(map.get("adSlotBlogPost")) ?? "1234567891",
+  };
+}
+
+export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
+  const db = getDb();
+  if (!db) return parseSiteSettings([]);
+  if (!(await ensureD1Schema())) return parseSiteSettings([]);
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('adsenseClient', 'analyticsMeasurementId', 'adSlotBlogList', 'adSlotBlogPost')",
+      )
+      .bind()
+      .all<SiteSettingRow>();
+    return parseSiteSettings(rows.results);
+  } catch {
+    return parseSiteSettings([]);
+  }
+}
+
+export async function savePublicSiteSettings(input: {
+  adsenseClient: string | null;
+  analyticsMeasurementId: string | null;
+  adSlotBlogList: string | null;
+  adSlotBlogPost: string | null;
+}): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+
+  const settings: Array<[string, string | null]> = [
+    ["adsenseClient", normalizeNullable(input.adsenseClient)],
+    ["analyticsMeasurementId", normalizeNullable(input.analyticsMeasurementId)],
+    ["adSlotBlogList", normalizeNullable(input.adSlotBlogList)],
+    ["adSlotBlogPost", normalizeNullable(input.adSlotBlogPost)],
+  ];
+
+  try {
+    for (const [key, value] of settings) {
+      if (!value) {
+        await db
+          .prepare("DELETE FROM site_settings WHERE setting_key = ?")
+          .bind(key)
+          .run();
+        continue;
+      }
+      await db
+        .prepare(
+          "INSERT INTO site_settings (setting_key, setting_value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = datetime('now')",
+        )
+        .bind(key, value)
+        .run();
+    }
+    return true;
+  } catch {
+    return false;
   }
 }

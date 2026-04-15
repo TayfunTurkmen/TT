@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Outfit, Syne } from "next/font/google";
 import Script from "next/script";
+import { getPublicSiteSettings } from "@/lib/d1";
 import "./globals.css";
 
 const display = Syne({
@@ -34,16 +35,17 @@ export const metadata: Metadata = {
     alternateLocale: ["tr_TR"],
     siteName: "Tayfun Türkmen",
   },
-  other: process.env.NEXT_PUBLIC_ADSENSE_CLIENT
-    ? { "google-adsense-account": process.env.NEXT_PUBLIC_ADSENSE_CLIENT }
-    : undefined,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const settings = await getPublicSiteSettings();
+  const adsenseClient = settings.adsenseClient;
+  const analyticsId = settings.analyticsMeasurementId;
+
   return (
     <html
       lang="en"
@@ -57,13 +59,28 @@ export default function RootLayout({
               "try{const s=localStorage.getItem('tt-theme');const d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){}",
           }}
         />
-        {process.env.NEXT_PUBLIC_ADSENSE_CLIENT ? (
+        {adsenseClient ? (
           <Script
             async
             strategy="afterInteractive"
             crossOrigin="anonymous"
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${process.env.NEXT_PUBLIC_ADSENSE_CLIENT}`}
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
           />
+        ) : null}
+        {analyticsId ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${analyticsId}`}
+              strategy="afterInteractive"
+            />
+            <Script
+              id="google-analytics"
+              strategy="afterInteractive"
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${analyticsId}',{anonymize_ip:true});`,
+              }}
+            />
+          </>
         ) : null}
         {children}
       </body>

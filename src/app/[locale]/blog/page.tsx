@@ -1,5 +1,6 @@
 import { AdSlot } from "@/components/AdSlot";
 import { Link } from "@/i18n/routing";
+import { getPublicSiteSettings } from "@/lib/d1";
 import { getAllPosts } from "@/lib/posts";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
@@ -39,6 +40,7 @@ export default async function BlogIndexPage({ params }: Props) {
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "blog" });
   const posts = await getAllPosts(locale);
+  const settings = await getPublicSiteSettings();
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
@@ -94,7 +96,11 @@ export default async function BlogIndexPage({ params }: Props) {
         </ul>
       )}
       <div className="mt-10">
-        <AdSlot slot="1234567890" format="auto" />
+        <AdSlot
+          client={settings.adsenseClient}
+          slot={settings.adSlotBlogList}
+          format="auto"
+        />
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { AdminPanel } from "@/components/AdminPanel";
-import { hasAdminUser, listAdminBlogPosts, pingD1 } from "@/lib/d1";
+import { getPublicSiteSettings, hasAdminUser, listAdminBlogPosts, pingD1 } from "@/lib/d1";
 import { cookies } from "next/headers";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
@@ -25,6 +25,7 @@ export default async function AdminPage({ params }: Props) {
   const jar = await cookies();
   const unlocked = jar.get("admin_ok")?.value === "1";
   const posts = unlocked ? await listAdminBlogPosts(100) : [];
+  const marketing = enabled ? await getPublicSiteSettings() : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
@@ -45,6 +46,12 @@ export default async function AdminPage({ params }: Props) {
             updatedAt: p.updatedAt,
             scheduledFor: p.scheduledFor,
           }))}
+          initialSettings={{
+            adsenseClient: marketing?.adsenseClient ?? "",
+            analyticsMeasurementId: marketing?.analyticsMeasurementId ?? "",
+            adSlotBlogList: marketing?.adSlotBlogList ?? "1234567890",
+            adSlotBlogPost: marketing?.adSlotBlogPost ?? "1234567891",
+          }}
         />
       </div>
     </div>

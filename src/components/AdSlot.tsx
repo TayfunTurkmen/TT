@@ -9,16 +9,16 @@ declare global {
 }
 
 export function AdSlot({
+  client,
   slot,
   format = "auto",
   className = "",
 }: {
+  client?: string | null;
   slot: string;
   format?: "auto" | "rectangle" | "horizontal";
   className?: string;
 }) {
-  const client = process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
-
   useEffect(() => {
     if (!client) return;
     try {
@@ -26,7 +26,7 @@ export function AdSlot({
     } catch {
       // ignore if ads script has not loaded yet
     }
-  }, [client]);
+  }, [client, slot]);
 
   if (!client) {
     return (
