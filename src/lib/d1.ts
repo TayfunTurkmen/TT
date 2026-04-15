@@ -385,6 +385,24 @@ export async function autoPublishScheduledPosts(limit = 20): Promise<number> {
   }
 }
 
+export async function publishBlogPost(locale: string, slug: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+
+  try {
+    await db
+      .prepare(
+        "UPDATE blog_posts SET published = 1, published_at = datetime('now'), scheduled_for = NULL, updated_at = datetime('now') WHERE slug = ? AND locale = ?",
+      )
+      .bind(slug, locale)
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeNullable(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim();

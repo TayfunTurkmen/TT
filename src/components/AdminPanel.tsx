@@ -2,11 +2,13 @@
 
 import {
   generateBulkAiDrafts,
+  publishAdminPost,
   saveMarketingSettings,
   saveAdminPost,
   setupInitialAdmin,
   unlockAdmin,
 } from "@/app/actions/admin";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 
@@ -39,6 +41,7 @@ export function AdminPanel({
 }) {
   const t = useTranslations("admin");
   const locale = useLocale();
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [isUnlocked, setIsUnlocked] = useState(unlocked);
@@ -210,6 +213,7 @@ export function AdminPanel({
               start(async () => {
                 const res = await saveAdminPost(fd);
                 setMessage(res.ok ? t("saved") : t("error"));
+                if (res.ok) router.refresh();
               });
             }}
           >
@@ -275,6 +279,7 @@ export function AdminPanel({
               start(async () => {
                 const res = await generateBulkAiDrafts(fd);
                 setMessage(res.ok ? t("bulkSaved") : t("error"));
+                if (res.ok) router.refresh();
               });
             }}
           >
@@ -336,17 +341,37 @@ export function AdminPanel({
             ) : (
               <ul className="mt-3 space-y-2 text-sm text-[var(--muted)]">
                 {initialPosts.map((post) => (
-                  <li key={`${post.locale}-${post.slug}`} className="flex justify-between gap-4">
+                  <li
+                    key={`${post.locale}-${post.slug}`}
+                    className="flex flex-wrap items-center justify-between gap-3"
+                  >
                     <span>
                       [{post.locale}] {post.title} ({post.slug})
                     </span>
-                    <span>
+                    <span className="text-xs sm:text-sm">
                       {post.published
                         ? "published"
                         : post.scheduledFor
                           ? `scheduled: ${post.scheduledFor.slice(0, 10)}`
                           : "draft"}
                     </span>
+                    {!post.published ? (
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => {
+                          setMessage(null);
+                          start(async () => {
+                            const res = await publishAdminPost(post.locale, post.slug);
+                            setMessage(res.ok ? t("publishedNow") : t("error"));
+                            if (res.ok) router.refresh();
+                          });
+                        }}
+                        className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] disabled:opacity-50"
+                      >
+                        {t("publishNow")}
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>

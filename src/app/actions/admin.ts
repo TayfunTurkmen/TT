@@ -1,13 +1,28 @@
 "use server";
 
 import { generateDraft, translateDraft, type GeneratedDraft, type LocaleCode } from "@/lib/auto-blog";
-import { registerInitialAdmin, savePublicSiteSettings, upsertBlogPost, verifyAdminUser } from "@/lib/d1";
+import {
+  publishBlogPost,
+  registerInitialAdmin,
+  savePublicSiteSettings,
+  upsertBlogPost,
+  verifyAdminUser,
+} from "@/lib/d1";
 import { cookies } from "next/headers";
 
 const COOKIE = "admin_ok";
 
 export type AdminResult =
-  | { ok: true; message: "saved" | "unlocked" | "registered" | "bulkSaved" | "settingsSaved" }
+  | {
+      ok: true;
+      message:
+        | "saved"
+        | "unlocked"
+        | "registered"
+        | "bulkSaved"
+        | "settingsSaved"
+        | "publishedNow";
+    }
   | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" };
 
 export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
@@ -218,4 +233,19 @@ export async function saveMarketingSettings(formData: FormData): Promise<AdminRe
   });
   if (!ok) return { ok: false, error: "db" };
   return { ok: true, message: "settingsSaved" };
+}
+
+export async function publishAdminPost(locale: string, slug: string): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  const safeLocale = String(locale);
+  const safeSlug = String(slug).trim();
+  if (!safeSlug || (safeLocale !== "en" && safeLocale !== "tr")) {
+    return { ok: false, error: "invalid" };
+  }
+
+  const ok = await publishBlogPost(safeLocale, safeSlug);
+  if (!ok) return { ok: false, error: "db" };
+  return { ok: true, message: "publishedNow" };
 }

@@ -91,6 +91,8 @@
     "bulkGenerate": "Üret ve zamanla",
     "bulkRunNow": "Hemen çalıştır (taslak)",
     "bulkSaved": "Toplu taslaklar üretildi ve zamanlandı.",
+    "publishNow": "Şimdi yayınla",
+    "publishedNow": "Yazı yayınlandı.",
     "marketingTitle": "AdSense ve Analytics ayarları",
     "marketingLead": "Reklam ve analiz kimliklerini panelden yönetin (D1 içinde saklanır).",
     "adsenseClient": "AdSense client",

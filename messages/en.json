@@ -91,6 +91,8 @@
     "bulkGenerate": "Generate and schedule",
     "bulkRunNow": "Run now (drafts)",
     "bulkSaved": "Bulk drafts created and scheduled.",
+    "publishNow": "Publish now",
+    "publishedNow": "Post published.",
     "marketingTitle": "AdSense & Analytics settings",
     "marketingLead": "Manage ad and analytics IDs from panel (stored in D1).",
     "adsenseClient": "AdSense client",
