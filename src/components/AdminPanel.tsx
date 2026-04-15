@@ -295,6 +295,20 @@ export function AdminPanel({
               placeholder={t("topics")}
               required
             />
+            <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm text-[var(--text)]">
+              <input type="checkbox" name="useWebResearch" className="mt-1" />
+              <span>{t("bulkUseWeb")}</span>
+            </label>
+            <label className="mt-3 block text-sm text-[var(--muted)]">
+              {t("bulkWebSources")}
+              <textarea
+                name="webSourceUrls"
+                rows={4}
+                placeholder="https://example.com/article"
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+              />
+            </label>
+            <p className="mt-2 text-xs text-[var(--muted)]">{t("bulkWebSourcesLead")}</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-[var(--muted)]">
                 {t("startDate")}

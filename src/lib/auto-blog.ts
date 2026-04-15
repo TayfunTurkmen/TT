@@ -1,9 +1,12 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
+import { buildWebDualDrafts } from "@/lib/auto-blog-web";
 
 export type GenerateInput = {
   topic: string;
   locale: string;
+  /** Public HTTPS URLs to fetch and synthesize (no LLM API required). */
+  sourceUrls?: string[];
 };
 
 export type GeneratedDraft = {
@@ -132,7 +135,13 @@ export async function generatePostMarkdown(input: GenerateInput): Promise<string
 }
 
 export async function generateDraft(input: GenerateInput): Promise<GeneratedDraft> {
-  const content = await generatePostMarkdown(input);
+  const urls = input.sourceUrls?.map((u) => u.trim()).filter(Boolean).slice(0, 5) ?? [];
+  if (urls.length && (input.locale === "en" || input.locale === "tr")) {
+    const web = await buildWebDualDrafts(input.topic, input.locale, urls);
+    if (web.ok) return web.base;
+  }
+
+  const content = await generatePostMarkdown({ ...input, sourceUrls: undefined });
   const excerpt = toExcerpt(content, input.locale);
 
   return {

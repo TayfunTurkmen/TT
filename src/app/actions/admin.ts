@@ -1,6 +1,7 @@
 "use server";
 
 import { generateDraft, translateDraft, type GeneratedDraft, type LocaleCode } from "@/lib/auto-blog";
+import { buildWebDualDrafts } from "@/lib/auto-blog-web";
 import {
   deleteBlogPost,
   publishBlogPost,
@@ -124,6 +125,47 @@ async function saveTwoLocales(params: {
   return true;
 }
 
+async function saveTwoLocalesWeb(params: {
+  sharedSlug: string;
+  baseLocale: LocaleCode;
+  base: GeneratedDraft;
+  other: GeneratedDraft;
+  published: boolean;
+  scheduleDate: string | null;
+}) {
+  const { sharedSlug, baseLocale, base, other, published, scheduleDate } = params;
+  const otherLocale = pairLocale(baseLocale);
+  const scheduledFor = scheduleDate ? `${scheduleDate}T09:00:00Z` : null;
+
+  const primaryOk = await upsertBlogPost({
+    slug: sharedSlug,
+    locale: baseLocale,
+    title: base.title,
+    excerpt: base.excerpt,
+    content: base.content,
+    tags: base.tags,
+    published,
+    scheduledFor,
+    metaTitle: base.seoTitle,
+    metaDescription: base.seoDescription,
+  });
+  if (!primaryOk) return false;
+
+  const otherOk = await upsertBlogPost({
+    slug: sharedSlug,
+    locale: otherLocale,
+    title: other.title,
+    excerpt: other.excerpt,
+    content: other.content,
+    tags: other.tags,
+    published,
+    scheduledFor,
+    metaTitle: other.seoTitle,
+    metaDescription: other.seoDescription,
+  });
+  return otherOk;
+}
+
 export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
   const jar = await cookies();
   if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
@@ -183,6 +225,13 @@ export async function generateBulkAiDrafts(formData: FormData): Promise<AdminRes
   const runNow = String(formData.get("runNow") ?? "") === "1";
   const startDateRaw = String(formData.get("startDate") ?? "");
   const intervalDays = Number(String(formData.get("intervalDays") ?? "1")) || 1;
+  const useWebResearch = String(formData.get("useWebResearch") ?? "") === "on";
+  const rawWebUrls = String(formData.get("webSourceUrls") ?? "");
+  const webUrls = rawWebUrls
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .slice(0, 5);
 
   const topics = rawTopics
     .split("\n")
@@ -192,19 +241,38 @@ export async function generateBulkAiDrafts(formData: FormData): Promise<AdminRes
   if (!topics.length || (locale !== "en" && locale !== "tr")) {
     return { ok: false, error: "invalid" };
   }
+  if (useWebResearch && !webUrls.length) {
+    return { ok: false, error: "invalid" };
+  }
 
   const baseDate = startDateRaw ? new Date(`${startDateRaw}T09:00:00Z`) : new Date();
   const baseLocale = locale as LocaleCode;
 
   for (let i = 0; i < topics.length; i += 1) {
     const topic = topics[i];
-    const draft = await generateDraft({ topic, locale: baseLocale });
     const plannedDate = runNow
       ? null
       : addDays(baseDate, i * Math.max(1, intervalDays))
           .toISOString()
           .slice(0, 10);
 
+    if (useWebResearch && webUrls.length) {
+      const web = await buildWebDualDrafts(topic, baseLocale, webUrls);
+      if (!web.ok) return { ok: false, error: "invalid" };
+
+      const ok = await saveTwoLocalesWeb({
+        sharedSlug: web.sharedSlug,
+        baseLocale,
+        base: web.base,
+        other: web.other,
+        published: false,
+        scheduleDate: plannedDate,
+      });
+      if (!ok) return { ok: false, error: "db" };
+      continue;
+    }
+
+    const draft = await generateDraft({ topic, locale: baseLocale });
     const ok = await saveTwoLocales({
       baseLocale,
       draft,

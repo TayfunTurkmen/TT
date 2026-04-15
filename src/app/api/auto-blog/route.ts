@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 type Body = {
   topic?: string;
   locale?: string;
+  sourceUrls?: string[];
 };
 
 export async function POST(request: Request) {
@@ -36,7 +37,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Topic is too short." }, { status: 400 });
   }
 
-  const draft = await generateDraft({ topic, locale });
+  const sourceUrls = Array.isArray(body.sourceUrls)
+    ? body.sourceUrls.map((u) => String(u).trim()).filter(Boolean).slice(0, 5)
+    : undefined;
+
+  const draft = await generateDraft({ topic, locale, sourceUrls });
   try {
     await logAutoBlogRun(topic, locale);
   } catch {
