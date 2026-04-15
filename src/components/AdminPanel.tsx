@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  deleteAdminPost,
   generateBulkAiDrafts,
   publishAdminPost,
   saveMarketingSettings,
@@ -372,6 +373,22 @@ export function AdminPanel({
                         {t("publishNow")}
                       </button>
                     ) : null}
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => {
+                        if (!window.confirm(t("deleteConfirm"))) return;
+                        setMessage(null);
+                        start(async () => {
+                          const res = await deleteAdminPost(post.locale, post.slug);
+                          setMessage(res.ok ? t("deleted") : t("error"));
+                          if (res.ok) router.refresh();
+                        });
+                      }}
+                      className="rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-3 py-1.5 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
+                    >
+                      {t("delete")}
+                    </button>
                   </li>
                 ))}
               </ul>

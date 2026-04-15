@@ -2,6 +2,7 @@
 
 import { generateDraft, translateDraft, type GeneratedDraft, type LocaleCode } from "@/lib/auto-blog";
 import {
+  deleteBlogPost,
   publishBlogPost,
   registerInitialAdmin,
   savePublicSiteSettings,
@@ -21,7 +22,8 @@ export type AdminResult =
         | "registered"
         | "bulkSaved"
         | "settingsSaved"
-        | "publishedNow";
+        | "publishedNow"
+        | "deleted";
     }
   | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" };
 
@@ -248,4 +250,19 @@ export async function publishAdminPost(locale: string, slug: string): Promise<Ad
   const ok = await publishBlogPost(safeLocale, safeSlug);
   if (!ok) return { ok: false, error: "db" };
   return { ok: true, message: "publishedNow" };
+}
+
+export async function deleteAdminPost(locale: string, slug: string): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  const safeLocale = String(locale);
+  const safeSlug = String(slug).trim();
+  if (!safeSlug || (safeLocale !== "en" && safeLocale !== "tr")) {
+    return { ok: false, error: "invalid" };
+  }
+
+  const ok = await deleteBlogPost(safeLocale, safeSlug);
+  if (!ok) return { ok: false, error: "db" };
+  return { ok: true, message: "deleted" };
 }

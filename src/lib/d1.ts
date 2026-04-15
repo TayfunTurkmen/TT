@@ -403,6 +403,22 @@ export async function publishBlogPost(locale: string, slug: string): Promise<boo
   }
 }
 
+export async function deleteBlogPost(locale: string, slug: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+
+  try {
+    await db
+      .prepare("DELETE FROM blog_posts WHERE slug = ? AND locale = ?")
+      .bind(slug, locale)
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeNullable(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim();
