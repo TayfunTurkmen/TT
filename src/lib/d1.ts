@@ -1,4 +1,5 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 type D1Stmt = {
   bind: (...values: unknown[]) => {
@@ -23,6 +24,12 @@ export type DbPost = {
   published: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+type AdminUserRow = {
+  username: string;
+  password_hash: string;
+  salt: string;
 };
 
 function getDb(): D1Like | null {
@@ -60,6 +67,16 @@ export async function ensureD1Schema() {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(slug, locale)
+    );
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      salt TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
 
@@ -171,6 +188,72 @@ export async function listPublishedBlogPosts(locale: string): Promise<DbPost[]> 
     .all<RawDbPost>();
 
   return rows.results.map(mapDbPost);
+}
+
+function derivePasswordHash(password: string, saltHex: string): string {
+  return scryptSync(password, Buffer.from(saltHex, "hex"), 64).toString("hex");
+}
+
+export async function hasAdminUser(): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  await ensureD1Schema();
+
+  const row = await db
+    .prepare("SELECT username FROM admin_users LIMIT 1")
+    .bind()
+    .first<{ username: string }>();
+
+  return Boolean(row?.username);
+}
+
+export async function registerInitialAdmin(
+  username: string,
+  password: string,
+): Promise<"ok" | "exists" | "invalid" | "db"> {
+  const db = getDb();
+  if (!db) return "db";
+  await ensureD1Schema();
+
+  const cleanUsername = username.trim().toLowerCase();
+  if (cleanUsername.length < 3 || password.length < 8) return "invalid";
+
+  const exists = await hasAdminUser();
+  if (exists) return "exists";
+
+  const salt = randomBytes(16).toString("hex");
+  const passwordHash = derivePasswordHash(password, salt);
+  await db
+    .prepare("INSERT INTO admin_users (username, password_hash, salt) VALUES (?, ?, ?)")
+    .bind(cleanUsername, passwordHash, salt)
+    .run();
+
+  return "ok";
+}
+
+export async function verifyAdminUser(
+  username: string,
+  password: string,
+): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  await ensureD1Schema();
+
+  const cleanUsername = username.trim().toLowerCase();
+  const row = await db
+    .prepare(
+      "SELECT username, password_hash, salt FROM admin_users WHERE username = ? LIMIT 1",
+    )
+    .bind(cleanUsername)
+    .first<AdminUserRow>();
+
+  if (!row) return false;
+
+  const candidate = derivePasswordHash(password, row.salt);
+  return timingSafeEqual(
+    Buffer.from(candidate, "hex"),
+    Buffer.from(row.password_hash, "hex"),
+  );
 }
 
 export async function getPublishedBlogPost(

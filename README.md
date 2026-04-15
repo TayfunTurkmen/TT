@@ -36,7 +36,7 @@ This generates both Next.js output and OpenNext Worker artifacts (`.open-next/wo
 ## Admin Panel
 
 - Route: `/{locale}/admin` (e.g. `/en/admin`, `/tr/admin`)
-- Set `BLOG_ADMIN_SECRET` in your environment.
+- On first visit, create an admin username and password (stored in D1 as hash+salt).
 - Use the panel to create/edit posts and mark them as published.
 - Published posts are read from D1 and rendered in the public blog.
 
@@ -51,4 +51,5 @@ This generates both Next.js output and OpenNext Worker artifacts (`.open-next/wo
 - Binding name: `BLOG_DB`
 - Migration file: `migrations/0001_auto_blog_runs.sql`
 - Migration file: `migrations/0002_blog_posts.sql`
+- Migration file: `migrations/0003_admin_users.sql`
 - Auto-blog endpoint stores request metadata in `auto_blog_runs`

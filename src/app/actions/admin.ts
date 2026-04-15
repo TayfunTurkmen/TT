@@ -1,20 +1,20 @@
 "use server";
 
-import { upsertBlogPost } from "@/lib/d1";
+import { registerInitialAdmin, upsertBlogPost, verifyAdminUser } from "@/lib/d1";
 import { cookies } from "next/headers";
 
 const COOKIE = "admin_ok";
 
 export type AdminResult =
-  | { ok: true; message: "saved" | "unlocked" }
-  | { ok: false; error: "disabled" | "auth" | "locked" | "invalid" };
+  | { ok: true; message: "saved" | "unlocked" | "registered" }
+  | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" };
 
 export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
-  const expected = process.env.BLOG_ADMIN_SECRET;
-  if (!expected) return { ok: false, error: "disabled" };
-
-  const secret = String(formData.get("secret") ?? "");
-  if (secret !== expected) return { ok: false, error: "auth" };
+  const username = String(formData.get("username") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  if (!username || !password) return { ok: false, error: "invalid" };
+  const ok = await verifyAdminUser(username, password);
+  if (!ok) return { ok: false, error: "auth" };
 
   const jar = await cookies();
   jar.set(COOKIE, "1", {
@@ -28,6 +28,27 @@ export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
   return { ok: true, message: "unlocked" };
 }
 
+export async function setupInitialAdmin(formData: FormData): Promise<AdminResult> {
+  const username = String(formData.get("username") ?? "");
+  const password = String(formData.get("password") ?? "");
+  const result = await registerInitialAdmin(username, password);
+
+  if (result === "db") return { ok: false, error: "db" };
+  if (result === "invalid") return { ok: false, error: "invalid" };
+  if (result === "exists") return { ok: false, error: "exists" };
+
+  const jar = await cookies();
+  jar.set(COOKIE, "1", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    maxAge: 60 * 60 * 8,
+  });
+
+  return { ok: true, message: "registered" };
+}
+
 function toSlug(value: string) {
   return value
     .toLowerCase()
@@ -39,8 +60,6 @@ function toSlug(value: string) {
 }
 
 export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
-  if (!process.env.BLOG_ADMIN_SECRET) return { ok: false, error: "disabled" };
-
   const jar = await cookies();
   if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
 

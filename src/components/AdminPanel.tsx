@@ -1,6 +1,6 @@
 "use client";
 
-import { saveAdminPost, unlockAdmin } from "@/app/actions/admin";
+import { saveAdminPost, setupInitialAdmin, unlockAdmin } from "@/app/actions/admin";
 import { useLocale, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 
@@ -14,9 +14,11 @@ type AdminPost = {
 
 export function AdminPanel({
   enabled,
+  hasAdminUser,
   initialPosts,
 }: {
   enabled: boolean;
+  hasAdminUser: boolean;
   initialPosts: AdminPost[];
 }) {
   const t = useTranslations("admin");
@@ -34,6 +36,48 @@ export function AdminPanel({
 
   return (
     <div className="space-y-8">
+      {!hasAdminUser ? (
+        <form
+          className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
+          action={(fd) => {
+            setMessage(null);
+            start(async () => {
+              const res = await setupInitialAdmin(fd);
+              if (!res.ok) {
+                const err = res.error === "invalid" ? t("setupInvalid") : t("error");
+                setMessage(err);
+                return;
+              }
+              setMessage(t("registered"));
+            });
+          }}
+        >
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+            {t("setupTitle")}
+          </h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">{t("setupLead")}</p>
+          <input
+            name="username"
+            type="text"
+            className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
+            placeholder={t("username")}
+          />
+          <input
+            name="password"
+            type="password"
+            className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
+            placeholder={t("password")}
+          />
+          <button
+            type="submit"
+            disabled={pending}
+            className="mt-3 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {t("setupCta")}
+          </button>
+        </form>
+      ) : null}
+
       <form
         className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
         action={(fd) => {
@@ -41,7 +85,13 @@ export function AdminPanel({
           start(async () => {
             const res = await unlockAdmin(fd);
             if (!res.ok) {
-              setMessage(t("error"));
+              const err =
+                res.error === "auth"
+                  ? t("loginFailed")
+                  : res.error === "invalid"
+                    ? t("setupInvalid")
+                    : t("error");
+              setMessage(err);
               return;
             }
             setMessage(t("unlock"));
@@ -52,10 +102,16 @@ export function AdminPanel({
           {t("unlock")}
         </h2>
         <input
-          name="secret"
+          name="username"
+          type="text"
+          className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
+          placeholder={t("username")}
+        />
+        <input
+          name="password"
           type="password"
           className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
-          placeholder={t("secret")}
+          placeholder={t("password")}
         />
         <button
           type="submit"

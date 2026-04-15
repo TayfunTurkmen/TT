@@ -1,5 +1,5 @@
 import { AdminPanel } from "@/components/AdminPanel";
-import { listAdminBlogPosts } from "@/lib/d1";
+import { hasAdminUser, listAdminBlogPosts, pingD1 } from "@/lib/d1";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
 
@@ -19,7 +19,8 @@ export default async function AdminPage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "admin" });
-  const enabled = Boolean(process.env.BLOG_ADMIN_SECRET);
+  const enabled = Boolean(await pingD1());
+  const adminUserExists = enabled ? await hasAdminUser() : false;
   const posts = await listAdminBlogPosts(100);
 
   return (
@@ -31,6 +32,7 @@ export default async function AdminPage({ params }: Props) {
       <div className="mt-8">
         <AdminPanel
           enabled={enabled}
+          hasAdminUser={adminUserExists}
           initialPosts={posts.map((p) => ({
             slug: p.slug,
             locale: p.locale,
