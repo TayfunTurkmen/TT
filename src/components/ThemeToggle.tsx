@@ -10,21 +10,22 @@ type Props = {
 };
 
 export function ThemeToggle({ lightLabel, darkLabel }: Props) {
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored === "dark") return true;
+    if (stored === "light") return false;
+    return document.documentElement.classList.contains("dark");
+  });
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const nextDark = stored ? stored === "dark" : prefersDark;
-    document.documentElement.classList.toggle("dark", nextDark);
-    setIsDark(nextDark);
-  }, []);
+    document.documentElement.classList.toggle("dark", isDark);
+    window.localStorage.setItem(STORAGE_KEY, isDark ? "dark" : "light");
+  }, [isDark]);
 
   const toggleTheme = () => {
     const nextDark = !isDark;
     setIsDark(nextDark);
-    document.documentElement.classList.toggle("dark", nextDark);
-    window.localStorage.setItem(STORAGE_KEY, nextDark ? "dark" : "light");
   };
 
   return (

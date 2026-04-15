@@ -1,4 +1,5 @@
 import { generatePostMarkdown } from "@/lib/auto-blog";
+import { logAutoBlogRun } from "@/lib/d1";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -36,5 +37,10 @@ export async function POST(request: Request) {
   }
 
   const markdown = await generatePostMarkdown({ topic, locale });
+  try {
+    await logAutoBlogRun(topic, locale);
+  } catch {
+    // D1 should not block draft generation.
+  }
   return NextResponse.json({ markdown });
 }

@@ -4,6 +4,14 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-04-15",
   "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "BLOG_DB",
+      "database_name": "tayfun-blog-db",
+      "database_id": "1dbcbd5d-549a-4df4-abc2-274c7ec6ae9c",
+      "preview_database_id": "tt"
+    }
+  ],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"

@@ -1,37 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## TT Personal Site
 
-## Getting Started
+Next.js + OpenNext/Cloudflare setup for a bilingual personal blog with security-first defaults.
 
-First, run the development server:
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Cloudflare Build
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This generates both Next.js output and OpenNext Worker artifacts (`.open-next/worker.js` + assets).
 
-## Learn More
+## D1 Database Setup
 
-To learn more about Next.js, take a look at the following resources:
+1. Create a D1 database (if you do not have one yet):
+   ```bash
+   npx wrangler d1 create tayfun-blog-db
+   ```
+2. Copy `database_id` and `preview_database_id` into `wrangler.jsonc`:
+   - `d1_databases[0].database_id`
+   - `d1_databases[0].preview_database_id`
+3. Run migration:
+   ```bash
+   npm run d1:migrate:remote
+   ```
+4. Test connection:
+   - `GET /api/db/ping`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Current D1 Usage
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# TT
+- Binding name: `BLOG_DB`
+- Migration file: `migrations/0001_auto_blog_runs.sql`
+- Auto-blog endpoint stores request metadata in `auto_blog_runs`
