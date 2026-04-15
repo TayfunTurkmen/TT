@@ -47,6 +47,12 @@ export default function RootLayout({
       className={`${display.variable} ${sans.variable} ${mono.variable}`}
     >
       <body className="min-h-screen bg-[var(--bg)] font-[family-name:var(--font-sans)] text-[var(--text)] antialiased">
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{const s=localStorage.getItem('tt-theme');const d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){}",
+          }}
+        />
         {children}
       </body>
     </html>

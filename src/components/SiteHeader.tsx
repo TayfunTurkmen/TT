@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/routing";
 import { LocaleSwitch } from "./LocaleSwitch";
+import { ThemeToggle } from "./ThemeToggle";
 
 type Props = { locale: string };
 
@@ -46,6 +47,7 @@ export async function SiteHeader({ locale }: Props) {
             {t("studio")}
           </Link>
           <span className="mx-1 hidden h-4 w-px bg-[var(--border)] sm:inline" aria-hidden />
+          <ThemeToggle lightLabel={t("themeLight")} darkLabel={t("themeDark")} />
           <LocaleSwitch locale={locale} />
           <a
             href={`/api/rss?locale=${locale}`}

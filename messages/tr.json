@@ -8,14 +8,21 @@
     "blog": "Blog",
     "about": "Hakkımda",
     "studio": "Stüdyo",
+    "themeLight": "Açık temaya geç",
+    "themeDark": "Karanlık temaya geç",
     "rss": "RSS"
   },
   "home": {
     "badge": "Web · Siber güvenlik · Ustalık",
-    "headline": "Güvenliği tasarımın içine gömerek dayanıklı web sistemleri kurmak.",
-    "sub": "Modern arayüzler, platform mühendisliği ve savunmacı tasarım üzerine notlar — İngilizce ve Türkçe.",
+    "headline": "Siber güvenlik ve full-stack geliştirmeyi sahadaki uygulama ile birleştirmek.",
+    "sub": "LinkedIn profilime dayalı özet: Antalya'da Yaşam Hastaneler Grubu'nda IT Staff olarak çalışıyorum ve notlarımı İngilizce/Türkçe paylaşıyorum.",
     "ctaBlog": "Blogu oku",
     "ctaAbout": "Hakkımda",
+    "profileTitle": "Güncel profil özeti",
+    "profileRole": "Siber Güvenlik | Full Stack Geliştirici",
+    "profileCompany": "IT Staff · Yaşam Hastaneler Grubu",
+    "profileLocation": "Antalya, Türkiye",
+    "profileNetwork": "1.343 takipçi · 500+ bağlantı",
     "pillarsTitle": "Burada neler var",
     "pillar1Title": "Web geliştirme",
     "pillar1Body": "Performans, geliştirici deneyimi ve sürdürülebilir mimari — moda stack avcılığı değil.",
@@ -34,7 +41,18 @@
   },
   "about": {
     "title": "Hakkımda",
-    "body": "Ben Tayfun Türkmen. Bu site, açık webde kontrollü yüzeyim: statik öncelikli içerik, sıkı başlıklar ve paylaşılan bir gizli anahtarın arkasında isteğe bağlı yapay zekâ — anonim istemcilere asla açık değil."
+    "body": "Ben Tayfun Türkmen. Ana odak alanım siber güvenlik ve full-stack geliştirme; sağlık sektöründe IT operasyonları tecrübesiyle birlikte ilerliyorum.",
+    "summaryTitle": "Profil özeti",
+    "summaryBody": "Web teknolojileri ve siber güvenlik odaklı, sahada deneyim kazanmış, iki dilli içerik üreten ve güvenlik öncelikli mühendislik yaklaşımını benimseyen bir profil.",
+    "experienceTitle": "Seçili deneyimler",
+    "exp1": "IT Staff · Yaşam Hastaneler Grubu (Haz 2025 - Günümüz)",
+    "exp2": "Freelance WordPress Developer (Oca 2024 - Ağu 2025)",
+    "exp3": "Digital Media Specialist · Ali AYYILDIZ Inter Consultancy (Eyl 2024 - Haz 2025)",
+    "educationTitle": "Eğitim ve gelişim",
+    "edu1": "Bilgisayar Programcılığı · Mersin Üniversitesi",
+    "edu2": "Uluslararası İlişkiler · Anadolu Üniversitesi",
+    "edu3": "Full Stack Web Developer Course · GoIT",
+    "linkedinCta": "LinkedIn profilini görüntüle"
   },
   "footer": {
     "rights": "Tüm hakları saklıdır.",

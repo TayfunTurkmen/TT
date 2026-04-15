@@ -8,14 +8,21 @@
     "blog": "Blog",
     "about": "About",
     "studio": "Studio",
+    "themeLight": "Switch to light theme",
+    "themeDark": "Switch to dark theme",
     "rss": "RSS"
   },
   "home": {
     "badge": "Web · Cybersecurity · Craft",
-    "headline": "Building resilient web systems with security in the blueprint.",
-    "sub": "Notes on modern frontends, platform engineering, and defensive design — in English and Turkish.",
+    "headline": "Cybersecurity and full-stack development with practical execution.",
+    "sub": "Based on my LinkedIn profile: IT Staff at Yaşam Hastaneler Grubu in Antalya, sharing field notes in English and Turkish.",
     "ctaBlog": "Read the blog",
     "ctaAbout": "About me",
+    "profileTitle": "Current profile snapshot",
+    "profileRole": "Cyber Security | Full Stack Developer",
+    "profileCompany": "IT Staff · Yaşam Hastaneler Grubu",
+    "profileLocation": "Antalya, Türkiye",
+    "profileNetwork": "1,343 followers · 500+ connections",
     "pillarsTitle": "What you will find here",
     "pillar1Title": "Web development",
     "pillar1Body": "Performance, DX, and maintainable architecture — not hype-driven stacks.",
@@ -34,7 +41,18 @@
   },
   "about": {
     "title": "About",
-    "body": "I am Tayfun Türkmen. This site is my controlled surface on the open web: static-first content, strict headers, and optional AI assistance behind a shared secret — never exposed to anonymous clients."
+    "body": "I am Tayfun Türkmen. Cyber Security and Full Stack Development are my core focus areas, with current IT operations experience in healthcare systems.",
+    "summaryTitle": "Profile summary",
+    "summaryBody": "Web technologies and cybersecurity enthusiast with hands-on professional experience, bilingual publishing workflow, and a security-first engineering mindset.",
+    "experienceTitle": "Selected experience",
+    "exp1": "IT Staff · Yaşam Hastaneler Grubu (Jun 2025 - Present)",
+    "exp2": "Freelance WordPress Developer (Jan 2024 - Aug 2025)",
+    "exp3": "Digital Media Specialist · Ali AYYILDIZ Inter Consultancy (Sep 2024 - Jun 2025)",
+    "educationTitle": "Education and training",
+    "edu1": "Computer Programming · Mersin University",
+    "edu2": "International Relations · Anadolu University",
+    "edu3": "Full Stack Web Developer Course · GoIT",
+    "linkedinCta": "View LinkedIn profile"
   },
   "footer": {
     "rights": "All rights reserved.",

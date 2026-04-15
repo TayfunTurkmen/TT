@@ -48,6 +48,17 @@ export default async function HomePage({ params }: Props) {
             {t("ctaAbout")}
           </Link>
         </div>
+        <div className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--accent)]">
+            {t("profileTitle")}
+          </p>
+          <div className="mt-3 grid gap-2 text-sm text-[var(--muted)] sm:grid-cols-2">
+            <p>{t("profileRole")}</p>
+            <p>{t("profileCompany")}</p>
+            <p>{t("profileLocation")}</p>
+            <p>{t("profileNetwork")}</p>
+          </div>
+        </div>
       </section>
       <section className="relative mx-auto max-w-5xl border-t border-[var(--border)] px-4 py-16 sm:px-6">
         <h2 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text)]">

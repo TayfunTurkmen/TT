@@ -1,6 +1,26 @@
 @import "tailwindcss";
 
 :root {
+  --bg: #f7f9fc;
+  --text: #111827;
+  --muted: #4b5563;
+  --accent: #0f766e;
+  --accent-2: #2563eb;
+  --border: rgba(17, 24, 39, 0.14);
+  --chip: rgba(15, 23, 42, 0.04);
+  --header-bg: rgba(247, 249, 252, 0.84);
+  --footer-bg: rgba(240, 244, 248, 0.95);
+  --glow: rgba(37, 99, 235, 0.16);
+  --grid-line: rgba(15, 23, 42, 0.07);
+  --prose: #1f2937;
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+.dark {
   --bg: #050508;
   --text: #e8e6f2;
   --muted: #9b94b0;
@@ -11,11 +31,8 @@
   --header-bg: rgba(5, 5, 8, 0.72);
   --footer-bg: rgba(5, 5, 8, 0.92);
   --glow: rgba(94, 234, 212, 0.12);
-}
-
-@theme inline {
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+  --grid-line: rgba(255, 255, 255, 0.03);
+  --prose: #d8d3e6;
 }
 
 body {
@@ -28,8 +45,8 @@ body {
   inset: 0;
   z-index: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: radial-gradient(ellipse at 50% 0%, black 0%, transparent 70%);
 }
@@ -81,7 +98,7 @@ body {
 
 .prose-doc p {
   margin: 0.85rem 0;
-  color: #d8d3e6;
+  color: var(--prose);
 }
 
 .prose-doc a {
@@ -94,7 +111,7 @@ body {
   margin: 0.75rem 0;
   padding-left: 1.25rem;
   list-style: square;
-  color: #d8d3e6;
+  color: var(--prose);
 }
 
 .prose-doc code {
