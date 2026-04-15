@@ -44,68 +44,61 @@ function getDb(): D1Like | null {
 export async function ensureD1Schema() {
   const db = getDb();
   if (!db) return false;
+  try {
+    await db
+      .prepare(
+        "CREATE TABLE IF NOT EXISTS auto_blog_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, topic TEXT NOT NULL, locale TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+      )
+      .bind()
+      .run();
 
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS auto_blog_runs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      topic TEXT NOT NULL,
-      locale TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
+    await db
+      .prepare(
+        "CREATE TABLE IF NOT EXISTS blog_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL, locale TEXT NOT NULL, title TEXT NOT NULL, excerpt TEXT NOT NULL DEFAULT '', content TEXT NOT NULL, tags_json TEXT NOT NULL DEFAULT '[]', published INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(slug, locale))",
+      )
+      .bind()
+      .run();
 
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS blog_posts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      slug TEXT NOT NULL,
-      locale TEXT NOT NULL,
-      title TEXT NOT NULL,
-      excerpt TEXT NOT NULL DEFAULT '',
-      content TEXT NOT NULL,
-      tags_json TEXT NOT NULL DEFAULT '[]',
-      published INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(slug, locale)
-    );
-  `);
+    await db
+      .prepare(
+        "CREATE TABLE IF NOT EXISTS admin_users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, salt TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+      )
+      .bind()
+      .run();
 
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS admin_users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      salt TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-
-  return true;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function logAutoBlogRun(topic: string, locale: string) {
   const db = getDb();
   if (!db) return false;
-
-  await ensureD1Schema();
-  await db
-    .prepare("INSERT INTO auto_blog_runs (topic, locale) VALUES (?, ?)")
-    .bind(topic, locale)
-    .run();
-
-  return true;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare("INSERT INTO auto_blog_runs (topic, locale) VALUES (?, ?)")
+      .bind(topic, locale)
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function pingD1() {
   const db = getDb();
   if (!db) return null;
-
-  const row = await db
-    .prepare("SELECT datetime('now') AS now")
-    .bind()
-    .first<{ now: string }>();
-
-  return row?.now ?? null;
+  try {
+    const row = await db
+      .prepare("SELECT datetime('now') AS now")
+      .bind()
+      .first<{ now: string }>();
+    return row?.now ?? null;
+  } catch {
+    return null;
+  }
 }
 
 type RawDbPost = {
@@ -145,49 +138,53 @@ export async function upsertBlogPost(input: {
 }) {
   const db = getDb();
   if (!db) return false;
-  await ensureD1Schema();
-
-  await db
-    .prepare(
-      `
-      INSERT INTO blog_posts (slug, locale, title, excerpt, content, tags_json, published)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(slug, locale) DO UPDATE SET
-        title = excluded.title,
-        excerpt = excluded.excerpt,
-        content = excluded.content,
-        tags_json = excluded.tags_json,
-        published = excluded.published,
-        updated_at = datetime('now')
-    `,
-    )
-    .bind(
-      input.slug,
-      input.locale,
-      input.title,
-      input.excerpt,
-      input.content,
-      JSON.stringify(input.tags),
-      input.published ? 1 : 0,
-    )
-    .run();
-
-  return true;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare(
+        `
+        INSERT INTO blog_posts (slug, locale, title, excerpt, content, tags_json, published)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(slug, locale) DO UPDATE SET
+          title = excluded.title,
+          excerpt = excluded.excerpt,
+          content = excluded.content,
+          tags_json = excluded.tags_json,
+          published = excluded.published,
+          updated_at = datetime('now')
+      `,
+      )
+      .bind(
+        input.slug,
+        input.locale,
+        input.title,
+        input.excerpt,
+        input.content,
+        JSON.stringify(input.tags),
+        input.published ? 1 : 0,
+      )
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function listPublishedBlogPosts(locale: string): Promise<DbPost[]> {
   const db = getDb();
   if (!db) return [];
-  await ensureD1Schema();
-
-  const rows = await db
-    .prepare(
-      "SELECT slug, locale, title, excerpt, content, tags_json, published, created_at, updated_at FROM blog_posts WHERE locale = ? AND published = 1 ORDER BY updated_at DESC",
-    )
-    .bind(locale)
-    .all<RawDbPost>();
-
-  return rows.results.map(mapDbPost);
+  if (!(await ensureD1Schema())) return [];
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, created_at, updated_at FROM blog_posts WHERE locale = ? AND published = 1 ORDER BY updated_at DESC",
+      )
+      .bind(locale)
+      .all<RawDbPost>();
+    return rows.results.map(mapDbPost);
+  } catch {
+    return [];
+  }
 }
 
 function derivePasswordHash(password: string, saltHex: string): string {
@@ -197,14 +194,16 @@ function derivePasswordHash(password: string, saltHex: string): string {
 export async function hasAdminUser(): Promise<boolean> {
   const db = getDb();
   if (!db) return false;
-  await ensureD1Schema();
-
-  const row = await db
-    .prepare("SELECT username FROM admin_users LIMIT 1")
-    .bind()
-    .first<{ username: string }>();
-
-  return Boolean(row?.username);
+  if (!(await ensureD1Schema())) return false;
+  try {
+    const row = await db
+      .prepare("SELECT username FROM admin_users LIMIT 1")
+      .bind()
+      .first<{ username: string }>();
+    return Boolean(row?.username);
+  } catch {
+    return false;
+  }
 }
 
 export async function registerInitialAdmin(
@@ -213,7 +212,7 @@ export async function registerInitialAdmin(
 ): Promise<"ok" | "exists" | "invalid" | "db"> {
   const db = getDb();
   if (!db) return "db";
-  await ensureD1Schema();
+  if (!(await ensureD1Schema())) return "db";
 
   const cleanUsername = username.trim().toLowerCase();
   if (cleanUsername.length < 3 || password.length < 8) return "invalid";
@@ -223,12 +222,15 @@ export async function registerInitialAdmin(
 
   const salt = randomBytes(16).toString("hex");
   const passwordHash = derivePasswordHash(password, salt);
-  await db
-    .prepare("INSERT INTO admin_users (username, password_hash, salt) VALUES (?, ?, ?)")
-    .bind(cleanUsername, passwordHash, salt)
-    .run();
-
-  return "ok";
+  try {
+    await db
+      .prepare("INSERT INTO admin_users (username, password_hash, salt) VALUES (?, ?, ?)")
+      .bind(cleanUsername, passwordHash, salt)
+      .run();
+    return "ok";
+  } catch {
+    return "db";
+  }
 }
 
 export async function verifyAdminUser(
@@ -237,23 +239,27 @@ export async function verifyAdminUser(
 ): Promise<boolean> {
   const db = getDb();
   if (!db) return false;
-  await ensureD1Schema();
+  if (!(await ensureD1Schema())) return false;
 
   const cleanUsername = username.trim().toLowerCase();
-  const row = await db
-    .prepare(
-      "SELECT username, password_hash, salt FROM admin_users WHERE username = ? LIMIT 1",
-    )
-    .bind(cleanUsername)
-    .first<AdminUserRow>();
+  try {
+    const row = await db
+      .prepare(
+        "SELECT username, password_hash, salt FROM admin_users WHERE username = ? LIMIT 1",
+      )
+      .bind(cleanUsername)
+      .first<AdminUserRow>();
 
-  if (!row) return false;
+    if (!row) return false;
 
-  const candidate = derivePasswordHash(password, row.salt);
-  return timingSafeEqual(
-    Buffer.from(candidate, "hex"),
-    Buffer.from(row.password_hash, "hex"),
-  );
+    const candidate = derivePasswordHash(password, row.salt);
+    return timingSafeEqual(
+      Buffer.from(candidate, "hex"),
+      Buffer.from(row.password_hash, "hex"),
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function getPublishedBlogPost(
@@ -262,29 +268,33 @@ export async function getPublishedBlogPost(
 ): Promise<DbPost | null> {
   const db = getDb();
   if (!db) return null;
-  await ensureD1Schema();
-
-  const row = await db
-    .prepare(
-      "SELECT slug, locale, title, excerpt, content, tags_json, published, created_at, updated_at FROM blog_posts WHERE locale = ? AND slug = ? AND published = 1 LIMIT 1",
-    )
-    .bind(locale, slug)
-    .first<RawDbPost>();
-
-  return row ? mapDbPost(row) : null;
+  if (!(await ensureD1Schema())) return null;
+  try {
+    const row = await db
+      .prepare(
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, created_at, updated_at FROM blog_posts WHERE locale = ? AND slug = ? AND published = 1 LIMIT 1",
+      )
+      .bind(locale, slug)
+      .first<RawDbPost>();
+    return row ? mapDbPost(row) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function listAdminBlogPosts(limit = 100): Promise<DbPost[]> {
   const db = getDb();
   if (!db) return [];
-  await ensureD1Schema();
-
-  const rows = await db
-    .prepare(
-      "SELECT slug, locale, title, excerpt, content, tags_json, published, created_at, updated_at FROM blog_posts ORDER BY updated_at DESC LIMIT ?",
-    )
-    .bind(limit)
-    .all<RawDbPost>();
-
-  return rows.results.map(mapDbPost);
+  if (!(await ensureD1Schema())) return [];
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, created_at, updated_at FROM blog_posts ORDER BY updated_at DESC LIMIT ?",
+      )
+      .bind(limit)
+      .all<RawDbPost>();
+    return rows.results.map(mapDbPost);
+  } catch {
+    return [];
+  }
 }
