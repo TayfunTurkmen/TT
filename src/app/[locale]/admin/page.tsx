@@ -1,5 +1,6 @@
 import { AdminPanel } from "@/components/AdminPanel";
 import { hasAdminUser, listAdminBlogPosts, pingD1 } from "@/lib/d1";
+import { cookies } from "next/headers";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
 
@@ -21,7 +22,9 @@ export default async function AdminPage({ params }: Props) {
   const t = await getTranslations({ locale, namespace: "admin" });
   const enabled = Boolean(await pingD1());
   const adminUserExists = enabled ? await hasAdminUser() : false;
-  const posts = await listAdminBlogPosts(100);
+  const jar = await cookies();
+  const unlocked = jar.get("admin_ok")?.value === "1";
+  const posts = unlocked ? await listAdminBlogPosts(100) : [];
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
@@ -33,6 +36,7 @@ export default async function AdminPage({ params }: Props) {
         <AdminPanel
           enabled={enabled}
           hasAdminUser={adminUserExists}
+          unlocked={unlocked}
           initialPosts={posts.map((p) => ({
             slug: p.slug,
             locale: p.locale,
