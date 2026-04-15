@@ -163,6 +163,7 @@ export async function generateBulkAiDrafts(formData: FormData): Promise<AdminRes
 
   const locale = String(formData.get("locale") ?? "en");
   const rawTopics = String(formData.get("topics") ?? "");
+  const runNow = String(formData.get("runNow") ?? "") === "1";
   const startDateRaw = String(formData.get("startDate") ?? "");
   const intervalDays = Number(String(formData.get("intervalDays") ?? "1")) || 1;
 
@@ -181,9 +182,11 @@ export async function generateBulkAiDrafts(formData: FormData): Promise<AdminRes
   for (let i = 0; i < topics.length; i += 1) {
     const topic = topics[i];
     const draft = await generateDraft({ topic, locale: baseLocale });
-    const plannedDate = addDays(baseDate, i * Math.max(1, intervalDays))
-      .toISOString()
-      .slice(0, 10);
+    const plannedDate = runNow
+      ? null
+      : addDays(baseDate, i * Math.max(1, intervalDays))
+          .toISOString()
+          .slice(0, 10);
 
     const ok = await saveTwoLocales({
       baseLocale,

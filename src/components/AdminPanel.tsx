@@ -316,6 +316,15 @@ export function AdminPanel({
             >
               {t("bulkGenerate")}
             </button>
+            <button
+              type="submit"
+              name="runNow"
+              value="1"
+              disabled={pending}
+              className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-2 text-sm font-semibold text-[var(--text)] disabled:opacity-50"
+            >
+              {t("bulkRunNow")}
+            </button>
           </form>
 
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6">
