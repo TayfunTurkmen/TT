@@ -1,12 +1,13 @@
 "use server";
 
+import { generateDraft } from "@/lib/auto-blog";
 import { registerInitialAdmin, upsertBlogPost, verifyAdminUser } from "@/lib/d1";
 import { cookies } from "next/headers";
 
 const COOKIE = "admin_ok";
 
 export type AdminResult =
-  | { ok: true; message: "saved" | "unlocked" | "registered" }
+  | { ok: true; message: "saved" | "unlocked" | "registered" | "bulkSaved" }
   | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" };
 
 export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
@@ -73,13 +74,14 @@ export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
     .filter(Boolean);
   const content = String(formData.get("content") ?? "").trim();
   const published = String(formData.get("published") ?? "") === "on";
+  const scheduleDate = String(formData.get("scheduleDate") ?? "").trim();
   const slug = toSlug(rawSlug || title);
 
   if (!slug || !title || !content || (locale !== "en" && locale !== "tr")) {
     return { ok: false, error: "invalid" };
   }
 
-  await upsertBlogPost({
+  const ok = await upsertBlogPost({
     slug,
     locale,
     title,
@@ -87,7 +89,63 @@ export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
     content,
     tags,
     published,
+    scheduledFor: scheduleDate ? `${scheduleDate}T09:00:00Z` : null,
+    metaTitle: title,
+    metaDescription: excerpt,
   });
+  if (!ok) return { ok: false, error: "db" };
 
   return { ok: true, message: "saved" };
+}
+
+function addDays(base: Date, days: number): Date {
+  const x = new Date(base);
+  x.setUTCDate(x.getUTCDate() + days);
+  return x;
+}
+
+export async function generateBulkAiDrafts(formData: FormData): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  const locale = String(formData.get("locale") ?? "en");
+  const rawTopics = String(formData.get("topics") ?? "");
+  const startDateRaw = String(formData.get("startDate") ?? "");
+  const intervalDays = Number(String(formData.get("intervalDays") ?? "1")) || 1;
+
+  const topics = rawTopics
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  if (!topics.length || (locale !== "en" && locale !== "tr")) {
+    return { ok: false, error: "invalid" };
+  }
+
+  const baseDate = startDateRaw ? new Date(`${startDateRaw}T09:00:00Z`) : new Date();
+
+  for (let i = 0; i < topics.length; i += 1) {
+    const topic = topics[i];
+    const draft = await generateDraft({ topic, locale });
+    const slug = toSlug(topic);
+    const planned = addDays(baseDate, i * Math.max(1, intervalDays))
+      .toISOString()
+      .slice(0, 19) + "Z";
+
+    const ok = await upsertBlogPost({
+      slug,
+      locale,
+      title: draft.title,
+      excerpt: draft.excerpt,
+      content: draft.content,
+      tags: draft.tags,
+      published: false,
+      scheduledFor: planned,
+      metaTitle: draft.seoTitle,
+      metaDescription: draft.seoDescription,
+    });
+    if (!ok) return { ok: false, error: "db" };
+  }
+
+  return { ok: true, message: "bulkSaved" };
 }

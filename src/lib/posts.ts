@@ -18,6 +18,8 @@ export type Post = PostFrontmatter & {
   slug: string;
   content: string;
   locale: string;
+  seoTitle?: string;
+  seoDescription?: string;
 };
 
 const postsDir = path.join(process.cwd(), "content", "posts");
@@ -55,7 +57,9 @@ function dbToPost(p: DbPost): Post {
     excerpt: p.excerpt,
     tags: p.tags,
     content: p.content,
-    date: p.updatedAt?.slice(0, 10) ?? p.createdAt.slice(0, 10),
+    date: (p.publishedAt ?? p.updatedAt ?? p.createdAt).slice(0, 10),
+    seoTitle: p.metaTitle ?? undefined,
+    seoDescription: p.metaDescription ?? undefined,
   };
 }
 

@@ -43,6 +43,7 @@ export default async function AdminPage({ params }: Props) {
             title: p.title,
             published: p.published,
             updatedAt: p.updatedAt,
+            scheduledFor: p.scheduledFor,
           }))}
         />
       </div>

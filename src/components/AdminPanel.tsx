@@ -1,6 +1,11 @@
 "use client";
 
-import { saveAdminPost, setupInitialAdmin, unlockAdmin } from "@/app/actions/admin";
+import {
+  generateBulkAiDrafts,
+  saveAdminPost,
+  setupInitialAdmin,
+  unlockAdmin,
+} from "@/app/actions/admin";
 import { useLocale, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 
@@ -10,6 +15,7 @@ type AdminPost = {
   title: string;
   published: boolean;
   updatedAt: string;
+  scheduledFor?: string | null;
 };
 
 export function AdminPanel({
@@ -176,6 +182,14 @@ export function AdminPanel({
                 <input type="checkbox" name="published" />
                 {t("published")}
               </label>
+              <label className="text-sm text-[var(--muted)]">
+                {t("scheduleDate")}
+                <input
+                  type="date"
+                  name="scheduleDate"
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
             </div>
             <button
               type="submit"
@@ -183,6 +197,57 @@ export function AdminPanel({
               className="mt-4 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#041016] disabled:opacity-50"
             >
               {t("save")}
+            </button>
+          </form>
+
+          <form
+            className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
+            action={(fd) => {
+              fd.set("locale", locale);
+              setMessage(null);
+              start(async () => {
+                const res = await generateBulkAiDrafts(fd);
+                setMessage(res.ok ? t("bulkSaved") : t("error"));
+              });
+            }}
+          >
+            <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+              {t("bulkTitle")}
+            </h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">{t("bulkLead")}</p>
+            <textarea
+              name="topics"
+              rows={8}
+              className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+              placeholder={t("topics")}
+              required
+            />
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm text-[var(--muted)]">
+                {t("startDate")}
+                <input
+                  type="date"
+                  name="startDate"
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
+              <label className="text-sm text-[var(--muted)]">
+                {t("intervalDays")}
+                <input
+                  type="number"
+                  min={1}
+                  name="intervalDays"
+                  defaultValue={1}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
+            </div>
+            <button
+              type="submit"
+              disabled={pending}
+              className="mt-4 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {t("bulkGenerate")}
             </button>
           </form>
 
@@ -199,7 +264,13 @@ export function AdminPanel({
                     <span>
                       [{post.locale}] {post.title} ({post.slug})
                     </span>
-                    <span>{post.published ? "published" : "draft"}</span>
+                    <span>
+                      {post.published
+                        ? "published"
+                        : post.scheduledFor
+                          ? `scheduled: ${post.scheduledFor.slice(0, 10)}`
+                          : "draft"}
+                    </span>
                   </li>
                 ))}
               </ul>

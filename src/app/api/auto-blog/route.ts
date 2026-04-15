@@ -1,4 +1,4 @@
-import { generatePostMarkdown } from "@/lib/auto-blog";
+import { generateDraft } from "@/lib/auto-blog";
 import { logAutoBlogRun } from "@/lib/d1";
 import { NextResponse } from "next/server";
 
@@ -36,11 +36,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Topic is too short." }, { status: 400 });
   }
 
-  const markdown = await generatePostMarkdown({ topic, locale });
+  const draft = await generateDraft({ topic, locale });
   try {
     await logAutoBlogRun(topic, locale);
   } catch {
     // D1 should not block draft generation.
   }
-  return NextResponse.json({ markdown });
+  return NextResponse.json(draft);
 }

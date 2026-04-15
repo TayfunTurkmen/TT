@@ -16,11 +16,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale, slug } = await params;
   const post = await getPost(locale, slug);
   if (!post) return {};
+  const title = post.seoTitle ?? post.title;
+  const description = post.seoDescription ?? post.excerpt ?? post.title;
+  const canonicalPath = `/${locale}/blog/${slug}`;
+  const canonical = `https://tayfunturkmen.com${canonicalPath}`;
   return {
-    title: post.title,
-    description: post.excerpt ?? post.title,
+    title,
+    description,
     alternates: {
-      canonical: `/${locale}/blog/${slug}`,
+      canonical: canonicalPath,
+    },
+    openGraph: {
+      type: "article",
+      title,
+      description,
+      url: canonical,
+      siteName: "Tayfun Türkmen",
+      locale: locale === "tr" ? "tr_TR" : "en_US",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
     },
   };
 }
@@ -31,9 +48,30 @@ export default async function BlogPostPage({ params }: Props) {
   const t = await getTranslations({ locale, namespace: "blog" });
   const post = await getPost(locale, slug);
   if (!post) notFound();
+  const canonical = `https://tayfunturkmen.com/${locale}/blog/${slug}`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.seoTitle ?? post.title,
+    description: post.seoDescription ?? post.excerpt ?? post.title,
+    datePublished: post.date,
+    dateModified: post.date,
+    inLanguage: locale,
+    author: {
+      "@type": "Person",
+      name: "Tayfun Türkmen",
+    },
+    publisher: {
+      "@type": "Person",
+      name: "Tayfun Türkmen",
+    },
+    mainEntityOfPage: canonical,
+    url: canonical,
+  };
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Link
         href="/blog"
         className="text-sm font-medium text-[var(--muted)] hover:text-[var(--accent)]"

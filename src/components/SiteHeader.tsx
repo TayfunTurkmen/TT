@@ -40,12 +40,6 @@ export async function SiteHeader({ locale }: Props) {
           >
             {t("about")}
           </Link>
-          <Link
-            href="/studio"
-            className="hidden rounded-md px-2 py-1.5 text-[var(--muted)] hover:bg-[var(--chip)] hover:text-[var(--text)] sm:inline"
-          >
-            {t("studio")}
-          </Link>
           <span className="mx-1 hidden h-4 w-px bg-[var(--border)] sm:inline" aria-hidden />
           <ThemeToggle lightLabel={t("themeLight")} darkLabel={t("themeDark")} />
           <LocaleSwitch locale={locale} />

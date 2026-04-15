@@ -22,6 +22,10 @@ export type DbPost = {
   content: string;
   tags: string[];
   published: boolean;
+  scheduledFor: string | null;
+  publishedAt: string | null;
+  metaTitle: string | null;
+  metaDescription: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -54,7 +58,7 @@ export async function ensureD1Schema() {
 
     await db
       .prepare(
-        "CREATE TABLE IF NOT EXISTS blog_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL, locale TEXT NOT NULL, title TEXT NOT NULL, excerpt TEXT NOT NULL DEFAULT '', content TEXT NOT NULL, tags_json TEXT NOT NULL DEFAULT '[]', published INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(slug, locale))",
+        "CREATE TABLE IF NOT EXISTS blog_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL, locale TEXT NOT NULL, title TEXT NOT NULL, excerpt TEXT NOT NULL DEFAULT '', content TEXT NOT NULL, tags_json TEXT NOT NULL DEFAULT '[]', published INTEGER NOT NULL DEFAULT 0, scheduled_for TEXT NULL, published_at TEXT NULL, meta_title TEXT NULL, meta_description TEXT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(slug, locale))",
       )
       .bind()
       .run();
@@ -65,6 +69,20 @@ export async function ensureD1Schema() {
       )
       .bind()
       .run();
+
+    const alterStatements = [
+      "ALTER TABLE blog_posts ADD COLUMN scheduled_for TEXT NULL",
+      "ALTER TABLE blog_posts ADD COLUMN published_at TEXT NULL",
+      "ALTER TABLE blog_posts ADD COLUMN meta_title TEXT NULL",
+      "ALTER TABLE blog_posts ADD COLUMN meta_description TEXT NULL",
+    ];
+    for (const sql of alterStatements) {
+      try {
+        await db.prepare(sql).bind().run();
+      } catch {
+        // ignore if column already exists
+      }
+    }
 
     return true;
   } catch {
@@ -109,6 +127,10 @@ type RawDbPost = {
   content: string;
   tags_json: string;
   published: number;
+  scheduled_for: string | null;
+  published_at: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -122,6 +144,10 @@ function mapDbPost(post: RawDbPost): DbPost {
     content: post.content,
     tags: JSON.parse(post.tags_json || "[]") as string[],
     published: Boolean(post.published),
+    scheduledFor: post.scheduled_for,
+    publishedAt: post.published_at,
+    metaTitle: post.meta_title,
+    metaDescription: post.meta_description,
     createdAt: post.created_at,
     updatedAt: post.updated_at,
   };
@@ -135,6 +161,9 @@ export async function upsertBlogPost(input: {
   content: string;
   tags: string[];
   published: boolean;
+  scheduledFor?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
 }) {
   const db = getDb();
   if (!db) return false;
@@ -143,14 +172,18 @@ export async function upsertBlogPost(input: {
     await db
       .prepare(
         `
-        INSERT INTO blog_posts (slug, locale, title, excerpt, content, tags_json, published)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO blog_posts (slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(slug, locale) DO UPDATE SET
           title = excluded.title,
           excerpt = excluded.excerpt,
           content = excluded.content,
           tags_json = excluded.tags_json,
           published = excluded.published,
+          scheduled_for = excluded.scheduled_for,
+          published_at = excluded.published_at,
+          meta_title = excluded.meta_title,
+          meta_description = excluded.meta_description,
           updated_at = datetime('now')
       `,
       )
@@ -162,6 +195,10 @@ export async function upsertBlogPost(input: {
         input.content,
         JSON.stringify(input.tags),
         input.published ? 1 : 0,
+        input.scheduledFor ?? null,
+        input.published ? new Date().toISOString() : null,
+        input.metaTitle ?? null,
+        input.metaDescription ?? null,
       )
       .run();
     return true;
@@ -177,7 +214,7 @@ export async function listPublishedBlogPosts(locale: string): Promise<DbPost[]> 
   try {
     const rows = await db
       .prepare(
-        "SELECT slug, locale, title, excerpt, content, tags_json, published, created_at, updated_at FROM blog_posts WHERE locale = ? AND published = 1 ORDER BY updated_at DESC",
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, created_at, updated_at FROM blog_posts WHERE locale = ? AND published = 1 ORDER BY COALESCE(published_at, updated_at) DESC",
       )
       .bind(locale)
       .all<RawDbPost>();
@@ -272,7 +309,7 @@ export async function getPublishedBlogPost(
   try {
     const row = await db
       .prepare(
-        "SELECT slug, locale, title, excerpt, content, tags_json, published, created_at, updated_at FROM blog_posts WHERE locale = ? AND slug = ? AND published = 1 LIMIT 1",
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, created_at, updated_at FROM blog_posts WHERE locale = ? AND slug = ? AND published = 1 LIMIT 1",
       )
       .bind(locale, slug)
       .first<RawDbPost>();
@@ -289,12 +326,42 @@ export async function listAdminBlogPosts(limit = 100): Promise<DbPost[]> {
   try {
     const rows = await db
       .prepare(
-        "SELECT slug, locale, title, excerpt, content, tags_json, published, created_at, updated_at FROM blog_posts ORDER BY updated_at DESC LIMIT ?",
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, created_at, updated_at FROM blog_posts ORDER BY updated_at DESC LIMIT ?",
       )
       .bind(limit)
       .all<RawDbPost>();
     return rows.results.map(mapDbPost);
   } catch {
     return [];
+  }
+}
+
+export async function autoPublishScheduledPosts(limit = 20): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+  if (!(await ensureD1Schema())) return 0;
+
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT slug, locale FROM blog_posts WHERE published = 0 AND scheduled_for IS NOT NULL AND datetime(scheduled_for) <= datetime('now') ORDER BY datetime(scheduled_for) ASC LIMIT ?",
+      )
+      .bind(limit)
+      .all<{ slug: string; locale: string }>();
+
+    if (!rows.results.length) return 0;
+
+    for (const row of rows.results) {
+      await db
+        .prepare(
+          "UPDATE blog_posts SET published = 1, published_at = datetime('now'), updated_at = datetime('now') WHERE slug = ? AND locale = ?",
+        )
+        .bind(row.slug, row.locale)
+        .run();
+    }
+
+    return rows.results.length;
+  } catch {
+    return 0;
   }
 }

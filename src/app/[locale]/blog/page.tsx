@@ -9,11 +9,27 @@ type Props = { params: Promise<{ locale: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "blog" });
+  const title = t("title");
+  const description = t("subtitle");
+  const path = `/${locale}/blog`;
   return {
-    title: t("title"),
-    description: t("subtitle"),
+    title,
+    description,
     alternates: {
-      canonical: `/${locale}/blog`,
+      canonical: path,
+    },
+    openGraph: {
+      type: "website",
+      title,
+      description,
+      url: `https://tayfunturkmen.com${path}`,
+      siteName: "Tayfun Türkmen",
+      locale: locale === "tr" ? "tr_TR" : "en_US",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
     },
   };
 }
