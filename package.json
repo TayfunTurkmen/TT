@@ -7,8 +7,8 @@
     "build": "next build && opennextjs-cloudflare build --skipNextBuild",
     "build:next": "next build",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv",
-    "d1:migrate:local": "wrangler d1 execute tayfun-blog-db --local --file ./migrations/0001_auto_blog_runs.sql",
-    "d1:migrate:remote": "wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0001_auto_blog_runs.sql",
+    "d1:migrate:local": "wrangler d1 execute tayfun-blog-db --local --file ./migrations/0001_auto_blog_runs.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0002_blog_posts.sql",
+    "d1:migrate:remote": "wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0001_auto_blog_runs.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0002_blog_posts.sql",
     "start": "next start",
     "lint": "eslint"
   },

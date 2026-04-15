@@ -7,6 +7,7 @@
     "home": "Ana sayfa",
     "blog": "Blog",
     "about": "Hakkımda",
+    "admin": "Yönetim",
     "studio": "Stüdyo",
     "themeLight": "Açık temaya geç",
     "themeDark": "Karanlık temaya geç",
@@ -70,5 +71,23 @@
     "signIn": "Paneli aç",
     "secretLabel": "Panel gizli anahtarı",
     "hint": ".env.local içinde AUTO_BLOG_PANEL_SECRET ayarlayın. Yapay zekâ çıktısı için OPENAI_API_KEY ekleyin. Genel API: Authorization: Bearer AUTO_BLOG_SECRET."
+  },
+  "admin": {
+    "title": "Yönetim paneli",
+    "lead": "Bu güvenli panelden blog yazısı oluşturup yayınlayın.",
+    "locked": "Panel kilitli. BLOG_ADMIN_SECRET tanımlayın ve paneli açın.",
+    "unlock": "Yönetimi aç",
+    "secret": "Yönetim şifresi",
+    "save": "Yazıyı kaydet",
+    "saved": "Yazı kaydedildi.",
+    "error": "Yazı kaydedilemedi.",
+    "slug": "Slug",
+    "titleField": "Başlık",
+    "excerpt": "Özet",
+    "tags": "Etiketler (virgüllü)",
+    "content": "Markdown içerik",
+    "published": "Yayında",
+    "listTitle": "Mevcut yazılar",
+    "empty": "Henüz panelden yazı yok."
   }
 }

@@ -33,8 +33,22 @@ This generates both Next.js output and OpenNext Worker artifacts (`.open-next/wo
 4. Test connection:
    - `GET /api/db/ping`
 
+## Admin Panel
+
+- Route: `/{locale}/admin` (e.g. `/en/admin`, `/tr/admin`)
+- Set `BLOG_ADMIN_SECRET` in your environment.
+- Use the panel to create/edit posts and mark them as published.
+- Published posts are read from D1 and rendered in the public blog.
+
+## AdSense Compatibility
+
+- Set `NEXT_PUBLIC_ADSENSE_CLIENT` (e.g. `ca-pub-xxxxxxxxxxxx`).
+- Ad script is loaded only when this variable is set.
+- Ad slots are included in blog list and blog post pages.
+
 ## Current D1 Usage
 
 - Binding name: `BLOG_DB`
 - Migration file: `migrations/0001_auto_blog_runs.sql`
+- Migration file: `migrations/0002_blog_posts.sql`
 - Auto-blog endpoint stores request metadata in `auto_blog_runs`

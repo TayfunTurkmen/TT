@@ -1,0 +1,149 @@
+"use client";
+
+import { saveAdminPost, unlockAdmin } from "@/app/actions/admin";
+import { useLocale, useTranslations } from "next-intl";
+import { useState, useTransition } from "react";
+
+type AdminPost = {
+  slug: string;
+  locale: string;
+  title: string;
+  published: boolean;
+  updatedAt: string;
+};
+
+export function AdminPanel({
+  enabled,
+  initialPosts,
+}: {
+  enabled: boolean;
+  initialPosts: AdminPost[];
+}) {
+  const t = useTranslations("admin");
+  const locale = useLocale();
+  const [pending, start] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
+
+  if (!enabled) {
+    return (
+      <p className="rounded-xl border border-[var(--border)] bg-[var(--chip)] p-4 text-sm text-[var(--muted)]">
+        {t("locked")}
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <form
+        className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
+        action={(fd) => {
+          setMessage(null);
+          start(async () => {
+            const res = await unlockAdmin(fd);
+            if (!res.ok) {
+              setMessage(t("error"));
+              return;
+            }
+            setMessage(t("unlock"));
+          });
+        }}
+      >
+        <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+          {t("unlock")}
+        </h2>
+        <input
+          name="secret"
+          type="password"
+          className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
+          placeholder={t("secret")}
+        />
+        <button
+          type="submit"
+          disabled={pending}
+          className="mt-3 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {t("unlock")}
+        </button>
+      </form>
+
+      <form
+        className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
+        action={(fd) => {
+          fd.set("locale", locale);
+          setMessage(null);
+          start(async () => {
+            const res = await saveAdminPost(fd);
+            setMessage(res.ok ? t("saved") : t("error"));
+          });
+        }}
+      >
+        <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+          {t("title")}
+        </h2>
+        <div className="mt-4 grid gap-3">
+          <input
+            name="title"
+            placeholder={t("titleField")}
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+            required
+          />
+          <input
+            name="slug"
+            placeholder={t("slug")}
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+          />
+          <input
+            name="excerpt"
+            placeholder={t("excerpt")}
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+          />
+          <input
+            name="tags"
+            placeholder={t("tags")}
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+          />
+          <textarea
+            name="content"
+            placeholder={t("content")}
+            rows={12}
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+            required
+          />
+          <label className="inline-flex items-center gap-2 text-sm text-[var(--muted)]">
+            <input type="checkbox" name="published" />
+            {t("published")}
+          </label>
+        </div>
+        <button
+          type="submit"
+          disabled={pending}
+          className="mt-4 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#041016] disabled:opacity-50"
+        >
+          {t("save")}
+        </button>
+      </form>
+
+      {message ? <p className="text-sm text-[var(--muted)]">{message}</p> : null}
+
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6">
+        <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+          {t("listTitle")}
+        </h2>
+        {initialPosts.length === 0 ? (
+          <p className="mt-3 text-sm text-[var(--muted)]">{t("empty")}</p>
+        ) : (
+          <ul className="mt-3 space-y-2 text-sm text-[var(--muted)]">
+            {initialPosts.map((post) => (
+              <li key={`${post.locale}-${post.slug}`} className="flex justify-between gap-4">
+                <span>
+                  [{post.locale}] {post.title} ({post.slug})
+                </span>
+                <span>{post.published ? "published" : "draft"}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}

@@ -4,7 +4,7 @@ import type { MetadataRoute } from "next";
 
 const base = "https://tayfunturkmen.com";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [];
 
   for (const locale of routing.locales) {
@@ -22,7 +22,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: last,
     });
 
-    for (const slug of getAllSlugs(locale)) {
+    for (const slug of await getAllSlugs(locale)) {
       entries.push({
         url: `${base}/${locale}/blog/${slug}`,
         lastModified: last,

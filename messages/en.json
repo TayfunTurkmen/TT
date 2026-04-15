@@ -7,6 +7,7 @@
     "home": "Home",
     "blog": "Blog",
     "about": "About",
+    "admin": "Admin",
     "studio": "Studio",
     "themeLight": "Switch to light theme",
     "themeDark": "Switch to dark theme",
@@ -70,5 +71,23 @@
     "signIn": "Unlock panel",
     "secretLabel": "Panel secret",
     "hint": "Set AUTO_BLOG_PANEL_SECRET in .env.local. For AI output, add OPENAI_API_KEY. The public API uses Authorization: Bearer AUTO_BLOG_SECRET."
+  },
+  "admin": {
+    "title": "Admin panel",
+    "lead": "Create and publish blog posts from this secured panel.",
+    "locked": "Panel is locked. Set BLOG_ADMIN_SECRET and unlock.",
+    "unlock": "Unlock admin",
+    "secret": "Admin secret",
+    "save": "Save post",
+    "saved": "Post saved.",
+    "error": "Could not save post.",
+    "slug": "Slug",
+    "titleField": "Title",
+    "excerpt": "Excerpt",
+    "tags": "Tags (comma separated)",
+    "content": "Markdown content",
+    "published": "Published",
+    "listTitle": "Existing posts",
+    "empty": "No admin posts yet."
   }
 }

@@ -13,8 +13,9 @@ const csp = [
   "img-src 'self' data: https:",
   "font-src 'self' https://fonts.gstatic.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  `script-src 'self'${isProd ? "" : " 'unsafe-eval'"}`,
-  "connect-src 'self'",
+  `script-src 'self' https://pagead2.googlesyndication.com${isProd ? "" : " 'unsafe-eval'"}`,
+  "connect-src 'self' https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net",
+  "frame-src https://googleads.g.doubleclick.net https://tpc.googlesyndication.com",
   "upgrade-insecure-requests",
 ].join("; ");
 

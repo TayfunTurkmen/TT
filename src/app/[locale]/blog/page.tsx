@@ -1,3 +1,4 @@
+import { AdSlot } from "@/components/AdSlot";
 import { Link } from "@/i18n/routing";
 import { getAllPosts } from "@/lib/posts";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -21,7 +22,7 @@ export default async function BlogIndexPage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "blog" });
-  const posts = getAllPosts(locale);
+  const posts = await getAllPosts(locale);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
@@ -76,6 +77,9 @@ export default async function BlogIndexPage({ params }: Props) {
           ))}
         </ul>
       )}
+      <div className="mt-10">
+        <AdSlot slot="1234567890" format="auto" />
+      </div>
     </div>
   );
 }

@@ -15,7 +15,7 @@ function escapeXml(s: string) {
 export async function GET(request: NextRequest) {
   const locale = request.nextUrl.searchParams.get("locale") === "tr" ? "tr" : "en";
   const base = "https://tayfunturkmen.com";
-  const posts = getAllPosts(locale);
+  const posts = await getAllPosts(locale);
 
   const items = posts
     .map((p) => {

@@ -1,6 +1,7 @@
+import { AdSlot } from "@/components/AdSlot";
 import { MarkdownContent } from "@/components/MarkdownContent";
-import { Link, routing } from "@/i18n/routing";
-import { getAllSlugs, getPost } from "@/lib/posts";
+import { Link } from "@/i18n/routing";
+import { getPost } from "@/lib/posts";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -8,18 +9,12 @@ import { notFound } from "next/navigation";
 type Props = { params: Promise<{ locale: string; slug: string }> };
 
 export function generateStaticParams() {
-  const out: { locale: string; slug: string }[] = [];
-  for (const locale of routing.locales) {
-    for (const slug of getAllSlugs(locale)) {
-      out.push({ locale, slug });
-    }
-  }
-  return out;
+  return [];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale, slug } = await params;
-  const post = getPost(locale, slug);
+  const post = await getPost(locale, slug);
   if (!post) return {};
   return {
     title: post.title,
@@ -34,7 +29,7 @@ export default async function BlogPostPage({ params }: Props) {
   const { locale, slug } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "blog" });
-  const post = getPost(locale, slug);
+  const post = await getPost(locale, slug);
   if (!post) notFound();
 
   return (
@@ -60,6 +55,9 @@ export default async function BlogPostPage({ params }: Props) {
       </header>
       <div className="mt-10">
         <MarkdownContent markdown={post.content} />
+      </div>
+      <div className="mt-10">
+        <AdSlot slot="1234567891" format="auto" />
       </div>
     </article>
   );
