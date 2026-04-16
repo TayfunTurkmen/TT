@@ -49,6 +49,35 @@ export default async function HomePage({ params }: Props) {
             {t("ctaAbout")}
           </Link>
         </div>
+        <section className="mt-10">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+            {t("cvTitle")}
+          </h2>
+          <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--chip)] p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <article>
+                <p className="text-xs text-[var(--muted)]">{t("cvNameLabel")}</p>
+                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{t("cvNameValue")}</p>
+              </article>
+              <article>
+                <p className="text-xs text-[var(--muted)]">{t("cvRoleLabel")}</p>
+                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{t("cvRoleValue")}</p>
+              </article>
+              <article>
+                <p className="text-xs text-[var(--muted)]">{t("cvExperienceLabel")}</p>
+                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{t("cvExperienceValue")}</p>
+              </article>
+              <article>
+                <p className="text-xs text-[var(--muted)]">{t("cvLocationLabel")}</p>
+                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{t("cvLocationValue")}</p>
+              </article>
+            </div>
+            <article className="mt-4 border-t border-[var(--border)] pt-4">
+              <p className="text-xs text-[var(--muted)]">{t("cvSkillsLabel")}</p>
+              <p className="mt-1 text-sm font-semibold text-[var(--text)]">{t("cvSkillsValue")}</p>
+            </article>
+          </div>
+        </section>
       </section>
     </div>
   );
