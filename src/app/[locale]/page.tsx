@@ -39,7 +39,6 @@ export default async function HomePage({ params }: Props) {
           {t("headline")}
         </h1>
         <p className="mt-4 max-w-xl text-base leading-relaxed text-[var(--muted)] sm:mt-5">{t("sub")}</p>
-        <p className="mt-3 break-words text-sm text-[var(--muted)]">{t("minimalMeta")}</p>
         <div className="mt-8 flex w-full max-w-md flex-col gap-3 sm:max-w-none sm:flex-row sm:flex-wrap">
           <Link
             href="/blog"
@@ -104,34 +103,14 @@ export default async function HomePage({ params }: Props) {
                 </p>
                 <p className="mt-1 break-words text-sm font-semibold text-[var(--text)]">{t("cvLocationValue")}</p>
               </article>
-              <article className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3 sm:col-span-2">
-                <p className="flex items-center gap-2 text-xs text-[var(--muted)]">
-                  <span aria-hidden className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--chip)]">
-                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden>
-                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-                    </svg>
-                  </span>
-                  {t("cvLinkedInLabel")}
-                </p>
-                <a
-                  href={LINKEDIN_PROFILE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 inline-flex break-all text-sm font-semibold text-[var(--accent)] underline-offset-2 hover:underline"
-                >
-                  {t("cvLinkedInCta")}
-                </a>
-              </article>
             </div>
-            <ul
-              className="mt-4 flex flex-wrap gap-2 border-t border-[var(--border)] pt-4 [-webkit-overflow-scrolling:touch]"
-              aria-label={t("cvStackAria")}
-            >
-              <li className="list-none">
-                <span
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--accent)]"
-                  title="Next.js"
-                >
+            <div className="mt-4 flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <ul className="flex flex-wrap gap-2 [-webkit-overflow-scrolling:touch]" aria-label={t("cvStackAria")}>
+                <li className="list-none">
+                  <span
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--accent)]"
+                    title="Next.js"
+                  >
                   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
                     <path d="M11.572 0c-.176 0-.31.001-.358.007a19.76 19.76 0 0 1-.364.033C7.443.346 4.25 2.185 2.228 5.012a11.875 11.875 0 0 0-2.119 5.243c-.096.659-.108.854-.108 1.747s.012 1.089.108 1.748c.652 4.506 3.86 8.292 8.209 9.695.779.25 1.6.422 2.534.525.363.04 1.935.04 2.299 0 1.611-.178 2.977-.577 4.323-1.264.207-.106.247-.134.219-.158-.02-.013-.9-1.193-1.955-2.62l-1.918-2.593-2.425-3.418c-1.331-1.877-2.424-3.428-2.429-3.428-.005-.002-.005 1.612-.005 3.583 0 3.914-.01 3.564.095 3.928.134.471.428.88.816 1.129.164.105.41.194.59.237.214.052.72.065 9.38.065h9.15l.207-.106a1.68 1.68 0 0 0 .9-1.12c.074-.265.074-17.7 0-17.965a1.67 1.67 0 0 0-.9-1.12l-.207-.106H12.57l-.038.002z" />
                   </svg>
@@ -185,7 +164,20 @@ export default async function HomePage({ params }: Props) {
                   </svg>
                 </span>
               </li>
-            </ul>
+              </ul>
+              <a
+                href={LINKEDIN_PROFILE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-2.5 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--chip)] sm:w-auto"
+                aria-label={t("cvLinkedInLabel")}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                </svg>
+                {t("cvLinkedInCta")}
+              </a>
+            </div>
           </div>
         </section>
 
