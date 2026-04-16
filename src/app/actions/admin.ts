@@ -4,15 +4,23 @@ import { generateDraft, translateDraft, type GeneratedDraft, type LocaleCode } f
 import { buildWebDualDrafts } from "@/lib/auto-blog-web";
 import {
   autoPublishScheduledPosts,
+  clearAdminLoginFailures,
+  deleteBlogPostsBySlug,
   deleteBlogPost,
+  getAdminBlogPost,
+  getAdminSecuritySettings,
+  isAdminLoginBlocked,
   logCronRun,
-  publishBlogPost,
+  publishBlogPostsBySlug,
+  registerAdminLoginFailure,
   registerInitialAdmin,
   savePublicSiteSettings,
+  saveTurnstileSecret,
   upsertBlogPost,
   verifyAdminUser,
 } from "@/lib/d1";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 
 const COOKIE = "admin_ok";
 
@@ -31,12 +39,61 @@ export type AdminResult =
     }
   | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" };
 
+function getClientIpFromHeaders(
+  h: Headers,
+): string {
+  const cf = h.get("cf-connecting-ip");
+  if (cf) return cf;
+  const xff = h.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0]?.trim() || "unknown";
+  return "unknown";
+}
+
+async function verifyTurnstileIfEnabled(formData: FormData, ip: string): Promise<boolean> {
+  const settings = await getAdminSecuritySettings();
+  if (!settings.turnstileSecretKey) return true;
+  const token = String(formData.get("cf-turnstile-response") ?? "").trim();
+  if (!token) return false;
+
+  try {
+    const body = new URLSearchParams();
+    body.set("secret", settings.turnstileSecretKey);
+    body.set("response", token);
+    body.set("remoteip", ip);
+    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { success?: boolean };
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
 export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
+  const h = await headers();
+  const ip = getClientIpFromHeaders(h);
   const username = String(formData.get("username") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   if (!username || !password) return { ok: false, error: "invalid" };
+  const attemptKey = `${username}|${ip}`;
+  const blockedSeconds = await isAdminLoginBlocked(attemptKey);
+  if (blockedSeconds > 0) return { ok: false, error: "auth" };
+
+  const turnstileOk = await verifyTurnstileIfEnabled(formData, ip);
+  if (!turnstileOk) {
+    await registerAdminLoginFailure(attemptKey);
+    return { ok: false, error: "auth" };
+  }
   const ok = await verifyAdminUser(username, password);
-  if (!ok) return { ok: false, error: "auth" };
+  if (!ok) {
+    await registerAdminLoginFailure(attemptKey);
+    return { ok: false, error: "auth" };
+  }
+  await clearAdminLoginFailures(attemptKey);
 
   const jar = await cookies();
   jar.set(COOKIE, "1", {
@@ -96,9 +153,10 @@ async function saveTwoLocales(params: {
   const targetLocale = pairLocale(baseLocale);
   const translated = await translateDraft(draft, baseLocale, targetLocale);
   const scheduledFor = scheduleDate ? `${scheduleDate}T09:00:00Z` : null;
+  const sharedSlug = baseSlug ?? toSlug(draft.title);
 
   const primaryOk = await upsertBlogPost({
-    slug: baseSlug ?? toSlug(draft.title),
+    slug: sharedSlug,
     locale: baseLocale,
     title: draft.title,
     excerpt: draft.excerpt,
@@ -112,7 +170,7 @@ async function saveTwoLocales(params: {
   if (!primaryOk) return false;
 
   const translatedOk = await upsertBlogPost({
-    slug: toSlug(translated.title),
+    slug: sharedSlug,
     locale: targetLocale,
     title: translated.title,
     excerpt: translated.excerpt,
@@ -213,6 +271,72 @@ export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
   return { ok: true, message: "saved" };
 }
 
+export async function updateAdminPost(formData: FormData): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  const originalLocale = String(formData.get("originalLocale") ?? "");
+  const originalSlug = String(formData.get("originalSlug") ?? "");
+  const existing = await getAdminBlogPost(originalLocale, originalSlug);
+  if (!existing) return { ok: false, error: "invalid" };
+
+  const title = String(formData.get("title") ?? "").trim();
+  const excerpt = String(formData.get("excerpt") ?? "").trim();
+  const tags = String(formData.get("tags") ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const content = String(formData.get("content") ?? "").trim();
+  const published = String(formData.get("published") ?? "") === "on";
+  const scheduleDate = String(formData.get("scheduleDate") ?? "").trim();
+
+  if (!title || !content) return { ok: false, error: "invalid" };
+
+  const ok = await upsertBlogPost({
+    slug: existing.slug,
+    locale: existing.locale,
+    title,
+    excerpt,
+    content,
+    tags,
+    published,
+    scheduledFor: scheduleDate ? `${scheduleDate}T09:00:00Z` : null,
+    metaTitle: title,
+    metaDescription: excerpt,
+  });
+  if (!ok) return { ok: false, error: "db" };
+
+  const otherLocale = pairLocale(existing.locale as LocaleCode);
+  const translated = await translateDraft(
+    {
+      title,
+      excerpt,
+      content,
+      tags,
+      seoTitle: title,
+      seoDescription: excerpt,
+    },
+    existing.locale as LocaleCode,
+    otherLocale,
+  );
+  const otherOk = await upsertBlogPost({
+    slug: existing.slug,
+    locale: otherLocale,
+    title: translated.title,
+    excerpt: translated.excerpt,
+    content: translated.content,
+    tags: translated.tags,
+    published,
+    scheduledFor: scheduleDate ? `${scheduleDate}T09:00:00Z` : null,
+    metaTitle: translated.seoTitle,
+    metaDescription: translated.seoDescription,
+  });
+  if (!otherOk) return { ok: false, error: "db" };
+
+  revalidatePath("/[locale]/admin", "page");
+  return { ok: true, message: "saved" };
+}
+
 function addDays(base: Date, days: number): Date {
   const x = new Date(base);
   x.setUTCDate(x.getUTCDate() + days);
@@ -297,14 +421,18 @@ export async function saveMarketingSettings(formData: FormData): Promise<AdminRe
     String(formData.get("analyticsMeasurementId") ?? "").trim() || null;
   const adSlotBlogList = String(formData.get("adSlotBlogList") ?? "").trim() || null;
   const adSlotBlogPost = String(formData.get("adSlotBlogPost") ?? "").trim() || null;
+  const turnstileSiteKey = String(formData.get("turnstileSiteKey") ?? "").trim() || null;
+  const turnstileSecretKey = String(formData.get("turnstileSecretKey") ?? "").trim();
 
   const ok = await savePublicSiteSettings({
     adsenseClient,
     analyticsMeasurementId,
     adSlotBlogList,
     adSlotBlogPost,
+    turnstileSiteKey,
   });
-  if (!ok) return { ok: false, error: "db" };
+  const secOk = turnstileSecretKey ? await saveTurnstileSecret(turnstileSecretKey) : true;
+  if (!ok || !secOk) return { ok: false, error: "db" };
   return { ok: true, message: "settingsSaved" };
 }
 
@@ -318,7 +446,39 @@ export async function publishAdminPost(locale: string, slug: string): Promise<Ad
     return { ok: false, error: "invalid" };
   }
 
-  const ok = await publishBlogPost(safeLocale, safeSlug);
+  const source = await getAdminBlogPost(safeLocale, safeSlug);
+  if (!source) return { ok: false, error: "invalid" };
+  const otherLocale = pairLocale(safeLocale as LocaleCode);
+  const other = await getAdminBlogPost(otherLocale, safeSlug);
+  if (!other) {
+    const translated = await translateDraft(
+      {
+        title: source.title,
+        excerpt: source.excerpt,
+        content: source.content,
+        tags: source.tags,
+        seoTitle: source.metaTitle ?? source.title,
+        seoDescription: source.metaDescription ?? source.excerpt,
+      },
+      safeLocale as LocaleCode,
+      otherLocale,
+    );
+    const created = await upsertBlogPost({
+      slug: safeSlug,
+      locale: otherLocale,
+      title: translated.title,
+      excerpt: translated.excerpt,
+      content: translated.content,
+      tags: translated.tags,
+      published: false,
+      scheduledFor: null,
+      metaTitle: translated.seoTitle,
+      metaDescription: translated.seoDescription,
+    });
+    if (!created) return { ok: false, error: "db" };
+  }
+
+  const ok = await publishBlogPostsBySlug(safeSlug);
   if (!ok) return { ok: false, error: "db" };
   return { ok: true, message: "publishedNow" };
 }
@@ -334,6 +494,17 @@ export async function deleteAdminPost(locale: string, slug: string): Promise<Adm
   }
 
   const ok = await deleteBlogPost(safeLocale, safeSlug);
+  if (!ok) return { ok: false, error: "db" };
+  return { ok: true, message: "deleted" };
+}
+
+export async function deleteAdminPostGroup(slug: string): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  const safeSlug = String(slug).trim();
+  if (!safeSlug) return { ok: false, error: "invalid" };
+
+  const ok = await deleteBlogPostsBySlug(safeSlug);
   if (!ok) return { ok: false, error: "db" };
   return { ok: true, message: "deleted" };
 }

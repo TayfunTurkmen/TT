@@ -46,6 +46,7 @@ export type PublicSiteSettings = {
   analyticsMeasurementId: string | null;
   adSlotBlogList: string;
   adSlotBlogPost: string;
+  turnstileSiteKey: string | null;
 };
 
 export type CronRun = {
@@ -55,6 +56,11 @@ export type CronRun = {
   publishedCount: number;
   error: string | null;
   createdAt: string;
+};
+
+export type AdminSecuritySettings = {
+  turnstileSiteKey: string | null;
+  turnstileSecretKey: string | null;
 };
 
 function getDb(): D1Like | null {
@@ -101,6 +107,13 @@ export async function ensureD1Schema() {
     await db
       .prepare(
         "CREATE TABLE IF NOT EXISTS cron_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL DEFAULT 'api', ok INTEGER NOT NULL DEFAULT 0, published_count INTEGER NOT NULL DEFAULT 0, error TEXT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+      )
+      .bind()
+      .run();
+
+    await db
+      .prepare(
+        "CREATE TABLE IF NOT EXISTS admin_login_attempts (attempt_key TEXT PRIMARY KEY, fail_count INTEGER NOT NULL DEFAULT 0, blocked_until TEXT NULL, last_failed_at TEXT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
       )
       .bind()
       .run();
@@ -371,6 +384,26 @@ export async function listAdminBlogPosts(limit = 100): Promise<DbPost[]> {
   }
 }
 
+export async function getAdminBlogPost(
+  locale: string,
+  slug: string,
+): Promise<DbPost | null> {
+  const db = getDb();
+  if (!db) return null;
+  if (!(await ensureD1Schema())) return null;
+  try {
+    const row = await db
+      .prepare(
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, created_at, updated_at FROM blog_posts WHERE locale = ? AND slug = ? LIMIT 1",
+      )
+      .bind(locale, slug)
+      .first<RawDbPost>();
+    return row ? mapDbPost(row) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function autoPublishScheduledPosts(limit = 20): Promise<number> {
   const db = getDb();
   if (!db) return 0;
@@ -419,6 +452,23 @@ export async function publishBlogPost(locale: string, slug: string): Promise<boo
   }
 }
 
+export async function publishBlogPostsBySlug(slug: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare(
+        "UPDATE blog_posts SET published = 1, published_at = datetime('now'), scheduled_for = NULL, updated_at = datetime('now') WHERE slug = ?",
+      )
+      .bind(slug)
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function deleteBlogPost(locale: string, slug: string): Promise<boolean> {
   const db = getDb();
   if (!db) return false;
@@ -428,6 +478,78 @@ export async function deleteBlogPost(locale: string, slug: string): Promise<bool
     await db
       .prepare("DELETE FROM blog_posts WHERE slug = ? AND locale = ?")
       .bind(slug, locale)
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteBlogPostsBySlug(slug: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare("DELETE FROM blog_posts WHERE slug = ?")
+      .bind(slug)
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function isAdminLoginBlocked(attemptKey: string): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+  if (!(await ensureD1Schema())) return 0;
+
+  try {
+    const row = await db
+      .prepare(
+        "SELECT CAST((julianday(blocked_until) - julianday('now')) * 86400 AS INTEGER) AS seconds_left FROM admin_login_attempts WHERE attempt_key = ? AND blocked_until IS NOT NULL LIMIT 1",
+      )
+      .bind(attemptKey)
+      .first<{ seconds_left: number | null }>();
+    const seconds = Number(row?.seconds_left ?? 0);
+    return seconds > 0 ? seconds : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function registerAdminLoginFailure(attemptKey: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    const existing = await db
+      .prepare("SELECT fail_count FROM admin_login_attempts WHERE attempt_key = ? LIMIT 1")
+      .bind(attemptKey)
+      .first<{ fail_count: number }>();
+    const failCount = Number(existing?.fail_count ?? 0) + 1;
+    const blockMinutes = failCount >= 10 ? 60 : failCount >= 5 ? 15 : 0;
+    await db
+      .prepare(
+        "INSERT INTO admin_login_attempts (attempt_key, fail_count, blocked_until, last_failed_at, updated_at) VALUES (?, ?, CASE WHEN ? > 0 THEN datetime('now', '+' || ? || ' minutes') ELSE NULL END, datetime('now'), datetime('now')) ON CONFLICT(attempt_key) DO UPDATE SET fail_count = excluded.fail_count, blocked_until = excluded.blocked_until, last_failed_at = excluded.last_failed_at, updated_at = datetime('now')",
+      )
+      .bind(attemptKey, failCount, blockMinutes, blockMinutes)
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function clearAdminLoginFailures(attemptKey: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare("DELETE FROM admin_login_attempts WHERE attempt_key = ?")
+      .bind(attemptKey)
       .run();
     return true;
   } catch {
@@ -517,6 +639,7 @@ function parseSiteSettings(rows: SiteSettingRow[]): PublicSiteSettings {
       normalizeNullable(map.get("analyticsMeasurementId")) ?? envGa,
     adSlotBlogList: normalizeNullable(map.get("adSlotBlogList")) ?? "1234567890",
     adSlotBlogPost: normalizeNullable(map.get("adSlotBlogPost")) ?? "1234567891",
+    turnstileSiteKey: normalizeNullable(map.get("turnstileSiteKey")),
   };
 }
 
@@ -527,7 +650,7 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
   try {
     const rows = await db
       .prepare(
-        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('adsenseClient', 'analyticsMeasurementId', 'adSlotBlogList', 'adSlotBlogPost')",
+        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('adsenseClient', 'analyticsMeasurementId', 'adSlotBlogList', 'adSlotBlogPost', 'turnstileSiteKey')",
       )
       .bind()
       .all<SiteSettingRow>();
@@ -542,6 +665,8 @@ export async function savePublicSiteSettings(input: {
   analyticsMeasurementId: string | null;
   adSlotBlogList: string | null;
   adSlotBlogPost: string | null;
+  turnstileSiteKey?: string | null;
+  turnstileSecretKey?: string | null;
 }): Promise<boolean> {
   const db = getDb();
   if (!db) return false;
@@ -552,6 +677,7 @@ export async function savePublicSiteSettings(input: {
     ["analyticsMeasurementId", normalizeNullable(input.analyticsMeasurementId)],
     ["adSlotBlogList", normalizeNullable(input.adSlotBlogList)],
     ["adSlotBlogPost", normalizeNullable(input.adSlotBlogPost)],
+    ["turnstileSiteKey", normalizeNullable(input.turnstileSiteKey)],
   ];
 
   try {
@@ -570,6 +696,52 @@ export async function savePublicSiteSettings(input: {
         .bind(key, value)
         .run();
     }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getAdminSecuritySettings(): Promise<AdminSecuritySettings> {
+  const db = getDb();
+  if (!db) return { turnstileSiteKey: null, turnstileSecretKey: null };
+  if (!(await ensureD1Schema())) return { turnstileSiteKey: null, turnstileSecretKey: null };
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('turnstileSiteKey', 'turnstileSecretKey')",
+      )
+      .bind()
+      .all<SiteSettingRow>();
+    const map = new Map(rows.results.map((row) => [row.setting_key, row.setting_value]));
+    return {
+      turnstileSiteKey: normalizeNullable(map.get("turnstileSiteKey")),
+      turnstileSecretKey: normalizeNullable(map.get("turnstileSecretKey")),
+    };
+  } catch {
+    return { turnstileSiteKey: null, turnstileSecretKey: null };
+  }
+}
+
+export async function saveTurnstileSecret(secret: string | null): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  const value = normalizeNullable(secret);
+  try {
+    if (!value) {
+      await db
+        .prepare("DELETE FROM site_settings WHERE setting_key = 'turnstileSecretKey'")
+        .bind()
+        .run();
+      return true;
+    }
+    await db
+      .prepare(
+        "INSERT INTO site_settings (setting_key, setting_value, updated_at) VALUES ('turnstileSecretKey', ?, datetime('now')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = datetime('now')",
+      )
+      .bind(value)
+      .run();
     return true;
   } catch {
     return false;

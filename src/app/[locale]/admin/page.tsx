@@ -49,6 +49,9 @@ export default async function AdminPage({ params }: Props) {
             slug: p.slug,
             locale: p.locale,
             title: p.title,
+            excerpt: p.excerpt,
+            content: p.content,
+            tags: p.tags,
             published: p.published,
             updatedAt: p.updatedAt,
             scheduledFor: p.scheduledFor,
@@ -59,6 +62,7 @@ export default async function AdminPage({ params }: Props) {
             analyticsMeasurementId: marketing?.analyticsMeasurementId ?? "",
             adSlotBlogList: marketing?.adSlotBlogList ?? "1234567890",
             adSlotBlogPost: marketing?.adSlotBlogPost ?? "1234567891",
+            turnstileSiteKey: marketing?.turnstileSiteKey ?? "",
           }}
         />
       </div>

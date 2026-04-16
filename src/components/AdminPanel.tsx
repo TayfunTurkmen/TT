@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  deleteAdminPost,
+  deleteAdminPostGroup,
   generateEditorDraft,
   generateBulkAiDrafts,
   publishAdminPost,
@@ -9,8 +9,10 @@ import {
   saveMarketingSettings,
   saveAdminPost,
   setupInitialAdmin,
+  updateAdminPost,
   unlockAdmin,
 } from "@/app/actions/admin";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
@@ -19,6 +21,9 @@ type AdminPost = {
   slug: string;
   locale: string;
   title: string;
+  excerpt: string;
+  content: string;
+  tags: string[];
   published: boolean;
   updatedAt: string;
   scheduledFor?: string | null;
@@ -57,6 +62,7 @@ export function AdminPanel({
     analyticsMeasurementId: string;
     adSlotBlogList: string;
     adSlotBlogPost: string;
+    turnstileSiteKey: string;
   };
 }) {
   const t = useTranslations("admin");
@@ -71,7 +77,20 @@ export function AdminPanel({
   const [editorExcerpt, setEditorExcerpt] = useState("");
   const [editorTags, setEditorTags] = useState("");
   const [editorContent, setEditorContent] = useState("");
+  const [editorPublished, setEditorPublished] = useState(false);
+  const [editorScheduleDate, setEditorScheduleDate] = useState("");
+  const [editingTarget, setEditingTarget] = useState<{ locale: string; slug: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<"editor" | "posts" | "automation" | "settings">(
+    "editor",
+  );
   const [blocks, setBlocks] = useState<EditorBlock[]>([]);
+  const groupedPosts = Object.values(
+    initialPosts.reduce<Record<string, { slug: string; locales: AdminPost[] }>>((acc, post) => {
+      if (!acc[post.slug]) acc[post.slug] = { slug: post.slug, locales: [] };
+      acc[post.slug].locales.push(post);
+      return acc;
+    }, {}),
+  );
 
   const addBlock = (type: EditorBlock["type"]) =>
     setBlocks((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, type, value: "" }]);
@@ -115,6 +134,27 @@ export function AdminPanel({
     setEditorContent(markdown);
   };
 
+  const resetEditor = () => {
+    setEditingTarget(null);
+    setEditorTitle("");
+    setEditorExcerpt("");
+    setEditorTags("");
+    setEditorContent("");
+    setEditorPublished(false);
+    setEditorScheduleDate("");
+  };
+
+  const loadPostToEditor = (post: AdminPost) => {
+    setEditingTarget({ locale: post.locale, slug: post.slug });
+    setEditorTitle(post.title);
+    setEditorExcerpt(post.excerpt ?? "");
+    setEditorTags(post.tags.join(", "));
+    setEditorContent(post.content);
+    setEditorPublished(post.published);
+    setEditorScheduleDate(post.scheduledFor ? post.scheduledFor.slice(0, 10) : "");
+    setActiveTab("editor");
+  };
+
   if (!enabled) {
     return (
       <p className="rounded-xl border border-[var(--border)] bg-[var(--chip)] p-4 text-sm text-[var(--muted)]">
@@ -125,6 +165,12 @@ export function AdminPanel({
 
   return (
     <div className="space-y-8">
+      {initialSettings.turnstileSiteKey ? (
+        <Script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+          strategy="afterInteractive"
+        />
+      ) : null}
       {!hasAdminUser && !isUnlocked ? (
         <form
           className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
@@ -158,6 +204,12 @@ export function AdminPanel({
             className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
             placeholder={t("password")}
           />
+          {initialSettings.turnstileSiteKey ? (
+            <div
+              className="cf-turnstile mt-3"
+              data-sitekey={initialSettings.turnstileSiteKey}
+            />
+          ) : null}
           <button
             type="submit"
             disabled={pending}
@@ -205,6 +257,12 @@ export function AdminPanel({
             className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
             placeholder={t("password")}
           />
+          {initialSettings.turnstileSiteKey ? (
+            <div
+              className="cf-turnstile mt-3"
+              data-sitekey={initialSettings.turnstileSiteKey}
+            />
+          ) : null}
           <button
             type="submit"
             disabled={pending}
@@ -215,8 +273,31 @@ export function AdminPanel({
         </form>
       ) : (
         <>
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-2">
+            {[
+              ["editor", t("tabEditor")],
+              ["posts", t("tabPosts")],
+              ["automation", t("tabAutomation")],
+              ["settings", t("tabSettings")],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id as "editor" | "posts" | "automation" | "settings")}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+                  activeTab === id
+                    ? "bg-[var(--accent-2)] text-white"
+                    : "bg-[var(--bg)] text-[var(--text)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <form
-            className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+              activeTab === "settings" ? "" : "hidden"
+            }`}
             action={(fd) => {
               setMessage(null);
               start(async () => {
@@ -264,6 +345,24 @@ export function AdminPanel({
                   className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                 />
               </label>
+              <label className="text-sm text-[var(--muted)]">
+                {t("turnstileSiteKey")}
+                <input
+                  name="turnstileSiteKey"
+                  defaultValue={initialSettings.turnstileSiteKey}
+                  placeholder="0x4AAAA..."
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
+              <label className="text-sm text-[var(--muted)]">
+                {t("turnstileSecretKey")}
+                <input
+                  name="turnstileSecretKey"
+                  type="password"
+                  placeholder="Update secret key"
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
             </div>
             <button
               type="submit"
@@ -274,7 +373,11 @@ export function AdminPanel({
             </button>
           </form>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6">
+          <section
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+              activeTab === "automation" ? "" : "hidden"
+            }`}
+          >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
@@ -315,7 +418,11 @@ export function AdminPanel({
             </ul>
           </section>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6">
+          <section
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+              activeTab === "editor" ? "" : "hidden"
+            }`}
+          >
             <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
               {t("builderTitle")}
             </h2>
@@ -400,14 +507,23 @@ export function AdminPanel({
           </section>
 
           <form
-            className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+              activeTab === "editor" ? "" : "hidden"
+            }`}
             action={(fd) => {
               fd.set("locale", locale);
+              if (editingTarget) {
+                fd.set("originalLocale", editingTarget.locale);
+                fd.set("originalSlug", editingTarget.slug);
+              }
               setMessage(null);
               start(async () => {
-                const res = await saveAdminPost(fd);
+                const res = editingTarget ? await updateAdminPost(fd) : await saveAdminPost(fd);
                 setMessage(res.ok ? t("saved") : t("error"));
-                if (res.ok) router.refresh();
+                if (res.ok) {
+                  router.refresh();
+                  if (!editingTarget) resetEditor();
+                }
               });
             }}
           >
@@ -452,7 +568,12 @@ export function AdminPanel({
                 required
               />
               <label className="inline-flex items-center gap-2 text-sm text-[var(--muted)]">
-                <input type="checkbox" name="published" />
+                <input
+                  type="checkbox"
+                  name="published"
+                  checked={editorPublished}
+                  onChange={(e) => setEditorPublished(e.target.checked)}
+                />
                 {t("published")}
               </label>
               <label className="text-sm text-[var(--muted)]">
@@ -460,21 +581,36 @@ export function AdminPanel({
                 <input
                   type="date"
                   name="scheduleDate"
+                  value={editorScheduleDate}
+                  onChange={(e) => setEditorScheduleDate(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                 />
               </label>
             </div>
-            <button
-              type="submit"
-              disabled={pending}
-              className="mt-4 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#041016] disabled:opacity-50"
-            >
-              {t("save")}
-            </button>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#041016] disabled:opacity-50"
+              >
+                {editingTarget ? t("updatePost") : t("save")}
+              </button>
+              {editingTarget ? (
+                <button
+                  type="button"
+                  onClick={resetEditor}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-2 text-sm font-semibold text-[var(--text)]"
+                >
+                  {t("cancelEdit")}
+                </button>
+              ) : null}
+            </div>
           </form>
 
           <form
-            className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+              activeTab === "automation" ? "" : "hidden"
+            }`}
             action={(fd) => {
               fd.set("locale", locale);
               setMessage(null);
@@ -548,7 +684,11 @@ export function AdminPanel({
             </button>
           </form>
 
-          <section className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6">
+          <section
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+              activeTab === "posts" ? "" : "hidden"
+            }`}
+          >
             <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
               {t("listTitle")}
             </h2>
@@ -556,56 +696,70 @@ export function AdminPanel({
               <p className="mt-3 text-sm text-[var(--muted)]">{t("empty")}</p>
             ) : (
               <ul className="mt-3 space-y-2 text-sm text-[var(--muted)]">
-                {initialPosts.map((post) => (
-                  <li
-                    key={`${post.locale}-${post.slug}`}
-                    className="flex flex-wrap items-center justify-between gap-3"
-                  >
-                    <span>
-                      [{post.locale}] {post.title} ({post.slug})
-                    </span>
-                    <span className="text-xs sm:text-sm">
-                      {post.published
-                        ? "published"
-                        : post.scheduledFor
-                          ? `scheduled: ${post.scheduledFor.slice(0, 10)}`
-                          : "draft"}
-                    </span>
-                    {!post.published ? (
+                {groupedPosts.map((group) => {
+                  const primary =
+                    group.locales.find((p) => p.locale === locale) ??
+                    group.locales.find((p) => p.locale === "en") ??
+                    group.locales[0];
+                  const isPublished = group.locales.some((p) => p.published);
+                  const scheduled = group.locales.find((p) => p.scheduledFor)?.scheduledFor ?? null;
+                  return (
+                    <li
+                      key={group.slug}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3"
+                    >
+                      <div>
+                        <p className="font-medium text-[var(--text)]">{primary.title}</p>
+                        <p className="text-xs text-[var(--muted)]">
+                          ({group.slug}) · {group.locales.map((p) => p.locale.toUpperCase()).join("/")}
+                        </p>
+                      </div>
+                      <span className="text-xs sm:text-sm">
+                        {isPublished ? "published" : scheduled ? `scheduled: ${scheduled.slice(0, 10)}` : "draft"}
+                      </span>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text)]"
+                        onClick={() => loadPostToEditor(primary)}
+                      >
+                        {t("editPost")}
+                      </button>
+                      {!isPublished ? (
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => {
+                            setMessage(null);
+                            start(async () => {
+                              const res = await publishAdminPost(primary.locale, primary.slug);
+                              setMessage(res.ok ? t("publishedNow") : t("error"));
+                              if (res.ok) router.refresh();
+                            });
+                          }}
+                          className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] disabled:opacity-50"
+                        >
+                          {t("publishNow")}
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         disabled={pending}
                         onClick={() => {
+                          if (!window.confirm(t("deleteConfirm"))) return;
                           setMessage(null);
                           start(async () => {
-                            const res = await publishAdminPost(post.locale, post.slug);
-                            setMessage(res.ok ? t("publishedNow") : t("error"));
+                            const res = await deleteAdminPostGroup(group.slug);
+                            setMessage(res.ok ? t("deleted") : t("error"));
                             if (res.ok) router.refresh();
                           });
                         }}
-                        className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] disabled:opacity-50"
+                        className="rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-3 py-1.5 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
                       >
-                        {t("publishNow")}
+                        {t("delete")}
                       </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      disabled={pending}
-                      onClick={() => {
-                        if (!window.confirm(t("deleteConfirm"))) return;
-                        setMessage(null);
-                        start(async () => {
-                          const res = await deleteAdminPost(post.locale, post.slug);
-                          setMessage(res.ok ? t("deleted") : t("error"));
-                          if (res.ok) router.refresh();
-                        });
-                      }}
-                      className="rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-3 py-1.5 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
-                    >
-                      {t("delete")}
-                    </button>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
