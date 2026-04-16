@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { buildWebDualDrafts } from "@/lib/auto-blog-web";
+import { getAdminAiSettings } from "@/lib/d1";
 
 export type GenerateInput = {
   topic: string;
@@ -106,26 +107,14 @@ function toExcerpt(content: string, locale: string): string {
 
 export async function generatePostMarkdown(input: GenerateInput): Promise<string> {
   const slug = slugify(input.topic);
-  const openaiKey = process.env.OPENAI_API_KEY;
-  const openrouterKey = process.env.OPENROUTER_API_KEY;
-
-  if (!openaiKey && !openrouterKey) {
+  const model = await getModelContext();
+  if (!model) {
     return stubMarkdown(input, slug);
   }
-
-  const openai = openrouterKey
-    ? createOpenAI({
-        apiKey: openrouterKey,
-        baseURL: "https://openrouter.ai/api/v1",
-      })
-    : createOpenAI({ apiKey: openaiKey! });
   const language = input.locale === "tr" ? "Turkish" : "English";
-  const modelName = openrouterKey
-    ? process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat-v3-0324:free"
-    : "gpt-4o-mini";
 
   const { text } = await generateText({
-    model: openai(modelName),
+    model: model.openai(model.modelName),
     system: `You are a senior engineer writing careful blog posts about web development and cybersecurity. Output ONLY Markdown (no YAML frontmatter). Use ## and ### headings, short paragraphs, and at most one fenced code block. Language: ${language}. Avoid hype; prefer precise, implementable guidance.`,
     prompt: `Write a practical SEO-friendly blog draft for topic: ${input.topic}\n\nInclude: clear intro, practical guidance, security notes, and conclusion.`,
     maxOutputTokens: 2500,
@@ -159,7 +148,18 @@ type ModelContext = {
   modelName: string;
 };
 
-function getModelContext(): ModelContext | null {
+async function getModelContext(): Promise<ModelContext | null> {
+  const admin = await getAdminAiSettings();
+  if (admin.aiApiBaseUrl && admin.aiApiKey) {
+    return {
+      openai: createOpenAI({
+        apiKey: admin.aiApiKey,
+        baseURL: admin.aiApiBaseUrl,
+      }),
+      modelName: admin.aiModel || "gpt-4o-mini",
+    };
+  }
+
   const openaiKey = process.env.OPENAI_API_KEY;
   const openrouterKey = process.env.OPENROUTER_API_KEY;
   if (!openaiKey && !openrouterKey) return null;
@@ -184,7 +184,7 @@ export async function translateDraft(
   toLocale: LocaleCode,
 ): Promise<GeneratedDraft> {
   if (fromLocale === toLocale) return source;
-  const model = getModelContext();
+  const model = await getModelContext();
   if (!model) {
     return {
       ...source,

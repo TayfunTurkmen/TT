@@ -1,5 +1,6 @@
 import { AdminPanel } from "@/components/AdminPanel";
 import {
+  getAdminAiSettings,
   getPublicSiteSettings,
   hasAdminUser,
   listAdminBlogPosts,
@@ -33,6 +34,7 @@ export default async function AdminPage({ params }: Props) {
   const posts = unlocked ? await listAdminBlogPosts(100) : [];
   const cronRuns = unlocked ? await listCronRuns(15) : [];
   const marketing = enabled ? await getPublicSiteSettings() : null;
+  const ai = enabled ? await getAdminAiSettings() : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
@@ -63,6 +65,9 @@ export default async function AdminPage({ params }: Props) {
             adSlotBlogList: marketing?.adSlotBlogList ?? "1234567890",
             adSlotBlogPost: marketing?.adSlotBlogPost ?? "1234567891",
             turnstileSiteKey: marketing?.turnstileSiteKey ?? "",
+            aiApiBaseUrl: ai?.aiApiBaseUrl ?? "",
+            aiModel: ai?.aiModel ?? "",
+            hasAiApiKey: Boolean(ai?.aiApiKey),
           }}
         />
       </div>

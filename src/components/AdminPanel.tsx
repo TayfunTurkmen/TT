@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  bulkDeleteAdminPostGroups,
   deleteAdminPostGroup,
   generateEditorDraft,
   generateBulkAiDrafts,
@@ -15,7 +16,7 @@ import {
 import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 type AdminPost = {
   slug: string;
@@ -44,6 +45,16 @@ type EditorBlock = {
   value: string;
 };
 
+function toAutoSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 120);
+}
+
 export function AdminPanel({
   enabled,
   hasAdminUser,
@@ -63,6 +74,9 @@ export function AdminPanel({
     adSlotBlogList: string;
     adSlotBlogPost: string;
     turnstileSiteKey: string;
+    aiApiBaseUrl: string;
+    aiModel: string;
+    hasAiApiKey: boolean;
   };
 }) {
   const t = useTranslations("admin");
@@ -83,7 +97,12 @@ export function AdminPanel({
   const [activeTab, setActiveTab] = useState<"editor" | "posts" | "automation" | "settings">(
     "editor",
   );
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [blocks, setBlocks] = useState<EditorBlock[]>([]);
+  const slugPreview = useMemo(
+    () => (editingTarget ? editingTarget.slug : toAutoSlug(editorTitle) || "post"),
+    [editingTarget, editorTitle],
+  );
   const groupedPosts = Object.values(
     initialPosts.reduce<Record<string, { slug: string; locales: AdminPost[] }>>((acc, post) => {
       if (!acc[post.slug]) acc[post.slug] = { slug: post.slug, locales: [] };
@@ -91,6 +110,10 @@ export function AdminPanel({
       return acc;
     }, {}),
   );
+  const toggleSlugSelection = (slug: string) =>
+    setSelectedSlugs((prev) =>
+      prev.includes(slug) ? prev.filter((x) => x !== slug) : [...prev, slug],
+    );
 
   const addBlock = (type: EditorBlock["type"]) =>
     setBlocks((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, type, value: "" }]);
@@ -142,6 +165,7 @@ export function AdminPanel({
     setEditorContent("");
     setEditorPublished(false);
     setEditorScheduleDate("");
+    setBlocks([]);
   };
 
   const loadPostToEditor = (post: AdminPost) => {
@@ -363,6 +387,37 @@ export function AdminPanel({
                   className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                 />
               </label>
+              <label className="text-sm text-[var(--muted)]">
+                {t("customAiApiBaseUrl")}
+                <input
+                  name="aiApiBaseUrl"
+                  defaultValue={initialSettings.aiApiBaseUrl}
+                  placeholder="https://api.openai.com/v1"
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
+              <label className="text-sm text-[var(--muted)]">
+                {t("customAiModel")}
+                <input
+                  name="aiModel"
+                  defaultValue={initialSettings.aiModel}
+                  placeholder="gpt-4o-mini"
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
+              <label className="text-sm text-[var(--muted)] sm:col-span-2">
+                {t("customAiApiKey")}
+                <input
+                  name="aiApiKey"
+                  type="password"
+                  placeholder={
+                    initialSettings.hasAiApiKey
+                      ? t("customAiApiKeyHintSet")
+                      : t("customAiApiKeyHintEmpty")
+                  }
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                />
+              </label>
             </div>
             <button
               type="submit"
@@ -427,6 +482,13 @@ export function AdminPanel({
               {t("builderTitle")}
             </h2>
             <p className="mt-2 text-sm text-[var(--muted)]">{t("builderLead")}</p>
+            <button
+              type="button"
+              onClick={resetEditor}
+              className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs font-semibold text-[var(--text)]"
+            >
+              {t("newManualDraft")}
+            </button>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <input
                 value={editorTopic}
@@ -539,11 +601,9 @@ export function AdminPanel({
                 className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                 required
               />
-              <input
-                name="slug"
-                placeholder={t("slug")}
-                className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-              />
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--muted)]">
+                {t("slugAuto")}: <span className="text-[var(--text)]">{slugPreview}</span>
+              </div>
               <input
                 name="excerpt"
                 value={editorExcerpt}
@@ -695,7 +755,43 @@ export function AdminPanel({
             {initialPosts.length === 0 ? (
               <p className="mt-3 text-sm text-[var(--muted)]">{t("empty")}</p>
             ) : (
-              <ul className="mt-3 space-y-2 text-sm text-[var(--muted)]">
+              <>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSlugs(groupedPosts.map((g) => g.slug))}
+                    className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text)]"
+                  >
+                    {t("selectAll")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSlugs([])}
+                    className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text)]"
+                  >
+                    {t("clearSelection")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending || selectedSlugs.length === 0}
+                    onClick={() => {
+                      if (!window.confirm(t("deleteConfirm"))) return;
+                      setMessage(null);
+                      start(async () => {
+                        const res = await bulkDeleteAdminPostGroups(selectedSlugs);
+                        setMessage(res.ok ? t("bulkDeleted") : t("error"));
+                        if (res.ok) {
+                          setSelectedSlugs([]);
+                          router.refresh();
+                        }
+                      });
+                    }}
+                    className="rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-3 py-1.5 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
+                  >
+                    {t("deleteSelected")}
+                  </button>
+                </div>
+                <ul className="mt-3 space-y-2 text-sm text-[var(--muted)]">
                 {groupedPosts.map((group) => {
                   const primary =
                     group.locales.find((p) => p.locale === locale) ??
@@ -708,6 +804,14 @@ export function AdminPanel({
                       key={group.slug}
                       className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3"
                     >
+                      <label className="inline-flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={selectedSlugs.includes(group.slug)}
+                          onChange={() => toggleSlugSelection(group.slug)}
+                        />
+                        <span>{t("select")}</span>
+                      </label>
                       <div>
                         <p className="font-medium text-[var(--text)]">{primary.title}</p>
                         <p className="text-xs text-[var(--muted)]">
@@ -760,7 +864,8 @@ export function AdminPanel({
                     </li>
                   );
                 })}
-              </ul>
+                </ul>
+              </>
             )}
           </section>
         </>

@@ -63,6 +63,12 @@ export type AdminSecuritySettings = {
   turnstileSecretKey: string | null;
 };
 
+export type AdminAiSettings = {
+  aiApiBaseUrl: string | null;
+  aiApiKey: string | null;
+  aiModel: string | null;
+};
+
 function getDb(): D1Like | null {
   try {
     const { env } = getCloudflareContext();
@@ -746,4 +752,64 @@ export async function saveTurnstileSecret(secret: string | null): Promise<boolea
   } catch {
     return false;
   }
+}
+
+async function saveSiteSetting(key: string, value: string | null): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  const normalized = normalizeNullable(value);
+  try {
+    if (!normalized) {
+      await db.prepare("DELETE FROM site_settings WHERE setting_key = ?").bind(key).run();
+      return true;
+    }
+    await db
+      .prepare(
+        "INSERT INTO site_settings (setting_key, setting_value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = datetime('now')",
+      )
+      .bind(key, normalized)
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getAdminAiSettings(): Promise<AdminAiSettings> {
+  const db = getDb();
+  if (!db) return { aiApiBaseUrl: null, aiApiKey: null, aiModel: null };
+  if (!(await ensureD1Schema())) return { aiApiBaseUrl: null, aiApiKey: null, aiModel: null };
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('aiApiBaseUrl', 'aiApiKey', 'aiModel')",
+      )
+      .bind()
+      .all<SiteSettingRow>();
+    const map = new Map(rows.results.map((row) => [row.setting_key, row.setting_value]));
+    return {
+      aiApiBaseUrl: normalizeNullable(map.get("aiApiBaseUrl")),
+      aiApiKey: normalizeNullable(map.get("aiApiKey")),
+      aiModel: normalizeNullable(map.get("aiModel")),
+    };
+  } catch {
+    return { aiApiBaseUrl: null, aiApiKey: null, aiModel: null };
+  }
+}
+
+export async function saveAdminAiSettings(input: {
+  aiApiBaseUrl: string | null;
+  aiModel: string | null;
+  aiApiKey?: string | null;
+}): Promise<boolean> {
+  const baseOk = await saveSiteSetting("aiApiBaseUrl", input.aiApiBaseUrl);
+  if (!baseOk) return false;
+  const modelOk = await saveSiteSetting("aiModel", input.aiModel);
+  if (!modelOk) return false;
+  if (input.aiApiKey !== undefined) {
+    const keyOk = await saveSiteSetting("aiApiKey", input.aiApiKey);
+    if (!keyOk) return false;
+  }
+  return true;
 }

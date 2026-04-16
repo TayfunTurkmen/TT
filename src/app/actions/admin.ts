@@ -2,6 +2,7 @@
 
 import { generateDraft, translateDraft, type GeneratedDraft, type LocaleCode } from "@/lib/auto-blog";
 import { buildWebDualDrafts } from "@/lib/auto-blog-web";
+import { extractKeywords } from "@/lib/web-fetch";
 import {
   autoPublishScheduledPosts,
   clearAdminLoginFailures,
@@ -15,6 +16,7 @@ import {
   registerAdminLoginFailure,
   registerInitialAdmin,
   savePublicSiteSettings,
+  saveAdminAiSettings,
   saveTurnstileSecret,
   upsertBlogPost,
   verifyAdminUser,
@@ -35,7 +37,8 @@ export type AdminResult =
         | "settingsSaved"
         | "publishedNow"
         | "deleted"
-        | "cronRun";
+        | "cronRun"
+        | "bulkDeleted";
     }
   | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" };
 
@@ -142,6 +145,35 @@ function pairLocale(locale: LocaleCode): LocaleCode {
   return locale === "en" ? "tr" : "en";
 }
 
+function autoExcerptFromContent(content: string, locale: LocaleCode): string {
+  const plain = content
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, " ")
+    .replace(/\[[^\]]+\]\([^)]+\)/g, " ")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const slice = plain.slice(0, 158).trim();
+  if (slice) return slice;
+  return locale === "tr"
+    ? "Bu yazı web geliştirme ve siber güvenlik odağında pratik notlar içerir."
+    : "This post shares practical notes focused on web development and cybersecurity.";
+}
+
+function buildSeoTags(
+  locale: LocaleCode,
+  title: string,
+  excerpt: string,
+  content: string,
+  manualTags: string[],
+): string[] {
+  const auto = extractKeywords(`${title} ${excerpt} ${content.slice(0, 4000)}`, locale, 6);
+  const base = locale === "tr" ? ["seo", "blog", "web", "guvenlik"] : ["seo", "blog", "web", "security"];
+  return [...new Set([...manualTags, ...base, ...auto])].slice(0, 12);
+}
+
 async function saveTwoLocales(params: {
   baseLocale: LocaleCode;
   draft: GeneratedDraft;
@@ -233,9 +265,8 @@ export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
 
   const locale = String(formData.get("locale") ?? "en");
   const title = String(formData.get("title") ?? "").trim();
-  const rawSlug = String(formData.get("slug") ?? "").trim();
   const excerpt = String(formData.get("excerpt") ?? "").trim();
-  const tags = String(formData.get("tags") ?? "")
+  const manualTags = String(formData.get("tags") ?? "")
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);
@@ -247,16 +278,18 @@ export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
   }
 
   const baseLocale = locale as LocaleCode;
+  const effectiveExcerpt = excerpt || autoExcerptFromContent(content, baseLocale);
+  const tags = buildSeoTags(baseLocale, title, effectiveExcerpt, content, manualTags);
   const sourceDraft: GeneratedDraft = {
     title,
-    excerpt,
+    excerpt: effectiveExcerpt,
     content,
     tags,
     seoTitle: title,
-    seoDescription: excerpt,
+    seoDescription: effectiveExcerpt,
   };
 
-  const manualSlug = toSlug(rawSlug || title);
+  const manualSlug = toSlug(title);
   if (!manualSlug) return { ok: false, error: "invalid" };
 
   const ok = await saveTwoLocales({
@@ -282,7 +315,7 @@ export async function updateAdminPost(formData: FormData): Promise<AdminResult> 
 
   const title = String(formData.get("title") ?? "").trim();
   const excerpt = String(formData.get("excerpt") ?? "").trim();
-  const tags = String(formData.get("tags") ?? "")
+  const manualTags = String(formData.get("tags") ?? "")
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);
@@ -291,18 +324,21 @@ export async function updateAdminPost(formData: FormData): Promise<AdminResult> 
   const scheduleDate = String(formData.get("scheduleDate") ?? "").trim();
 
   if (!title || !content) return { ok: false, error: "invalid" };
+  const locale = existing.locale as LocaleCode;
+  const effectiveExcerpt = excerpt || autoExcerptFromContent(content, locale);
+  const tags = buildSeoTags(locale, title, effectiveExcerpt, content, manualTags);
 
   const ok = await upsertBlogPost({
     slug: existing.slug,
-    locale: existing.locale,
+    locale,
     title,
-    excerpt,
+    excerpt: effectiveExcerpt,
     content,
     tags,
     published,
     scheduledFor: scheduleDate ? `${scheduleDate}T09:00:00Z` : null,
     metaTitle: title,
-    metaDescription: excerpt,
+    metaDescription: effectiveExcerpt,
   });
   if (!ok) return { ok: false, error: "db" };
 
@@ -310,11 +346,11 @@ export async function updateAdminPost(formData: FormData): Promise<AdminResult> 
   const translated = await translateDraft(
     {
       title,
-      excerpt,
+      excerpt: effectiveExcerpt,
       content,
       tags,
       seoTitle: title,
-      seoDescription: excerpt,
+      seoDescription: effectiveExcerpt,
     },
     existing.locale as LocaleCode,
     otherLocale,
@@ -423,6 +459,9 @@ export async function saveMarketingSettings(formData: FormData): Promise<AdminRe
   const adSlotBlogPost = String(formData.get("adSlotBlogPost") ?? "").trim() || null;
   const turnstileSiteKey = String(formData.get("turnstileSiteKey") ?? "").trim() || null;
   const turnstileSecretKey = String(formData.get("turnstileSecretKey") ?? "").trim();
+  const aiApiBaseUrl = String(formData.get("aiApiBaseUrl") ?? "").trim() || null;
+  const aiModel = String(formData.get("aiModel") ?? "").trim() || null;
+  const aiApiKeyRaw = String(formData.get("aiApiKey") ?? "").trim();
 
   const ok = await savePublicSiteSettings({
     adsenseClient,
@@ -432,7 +471,12 @@ export async function saveMarketingSettings(formData: FormData): Promise<AdminRe
     turnstileSiteKey,
   });
   const secOk = turnstileSecretKey ? await saveTurnstileSecret(turnstileSecretKey) : true;
-  if (!ok || !secOk) return { ok: false, error: "db" };
+  const aiOk = await saveAdminAiSettings({
+    aiApiBaseUrl,
+    aiModel,
+    aiApiKey: aiApiKeyRaw ? aiApiKeyRaw : undefined,
+  });
+  if (!ok || !secOk || !aiOk) return { ok: false, error: "db" };
   return { ok: true, message: "settingsSaved" };
 }
 
@@ -507,6 +551,19 @@ export async function deleteAdminPostGroup(slug: string): Promise<AdminResult> {
   const ok = await deleteBlogPostsBySlug(safeSlug);
   if (!ok) return { ok: false, error: "db" };
   return { ok: true, message: "deleted" };
+}
+
+export async function bulkDeleteAdminPostGroups(slugs: string[]): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  const clean = [...new Set(slugs.map((s) => String(s).trim()).filter(Boolean))];
+  if (!clean.length) return { ok: false, error: "invalid" };
+
+  for (const slug of clean) {
+    const ok = await deleteBlogPostsBySlug(slug);
+    if (!ok) return { ok: false, error: "db" };
+  }
+  return { ok: true, message: "bulkDeleted" };
 }
 
 export async function runCronNow(): Promise<AdminResult> {

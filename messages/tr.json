@@ -15,8 +15,9 @@
   },
   "home": {
     "badge": "Web · Siber güvenlik · Sanat",
-    "headline": "Siber güvenlik ve full-stack geliştirmeyi sahadaki uygulama ile birleştirmek.",
-    "sub": "LinkedIn profilime dayalı özet: Antalya'da Yaşam Hastaneler Grubu'nda IT Staff olarak çalışıyorum ve notlarımı İngilizce/Türkçe paylaşıyorum.",
+    "headline": "Siber güvenlik ve full-stack geliştirme notları.",
+    "sub": "İngilizce ve Türkçe kısa, pratik içerikler.",
+    "minimalMeta": "Antalya · Yaşam Hastaneler Grubu IT Staff",
     "ctaBlog": "Blogu oku",
     "ctaAbout": "Hakkımda",
     "profileTitle": "Güncel profil özeti",
@@ -113,6 +114,12 @@
     "editPost": "Düzenle",
     "updatePost": "Yazıyı güncelle",
     "cancelEdit": "Vazgeç",
+    "newManualDraft": "Yeni manuel taslak",
+    "select": "seç",
+    "selectAll": "Tümünü seç",
+    "clearSelection": "Temizle",
+    "deleteSelected": "Seçilenleri sil",
+    "bulkDeleted": "Seçilen yazılar silindi.",
     "builderTitle": "Görsel makale düzenleyici",
     "builderLead": "Elementor tarzı bloklar + AI doldurma ile hızlı taslak üret.",
     "builderTopic": "AI destek konu başlığı",
@@ -128,6 +135,11 @@
     "adSlotBlogPost": "Blog yazı reklam slotu",
     "turnstileSiteKey": "Turnstile site key",
     "turnstileSecretKey": "Turnstile secret key",
+    "customAiApiBaseUrl": "Özel AI API base URL",
+    "customAiModel": "Özel AI model",
+    "customAiApiKey": "Özel AI API key",
+    "customAiApiKeyHintSet": "Mevcut anahtarı korumak için boş bırakın",
+    "customAiApiKeyHintEmpty": "Özel AI sağlayıcısı için anahtar girin",
     "saveSettings": "Ayarları kaydet",
     "settingsSaved": "Ayarlar güncellendi.",
     "saved": "Yazı kaydedildi.",
@@ -143,6 +155,7 @@
     "content": "Markdown içerik",
     "published": "Yayında",
     "listTitle": "Mevcut yazılar",
-    "empty": "Henüz panelden yazı yok."
+    "empty": "Henüz panelden yazı yok.",
+    "slugAuto": "Otomatik slug"
   }
 }
