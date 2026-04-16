@@ -3,12 +3,14 @@
 import {
   bulkDeleteAdminPostGroups,
   deleteAdminPostGroup,
+  deleteContactMessageAdmin,
   generateEditorDraft,
   generateBulkAiDrafts,
   publishAdminPost,
   runCronNow,
   saveMarketingSettings,
   saveAdminPost,
+  saveSmtpSettings,
   setupInitialAdmin,
   updateAdminPost,
   unlockAdmin,
@@ -39,6 +41,16 @@ type CronEntry = {
   createdAt: string;
 };
 
+type ContactInboxEntry = {
+  id: number;
+  name: string;
+  email: string;
+  body: string;
+  locale: string;
+  ip: string | null;
+  createdAt: string;
+};
+
 type EditorBlock = {
   id: string;
   type: "heading" | "paragraph" | "list" | "quote" | "code";
@@ -62,6 +74,8 @@ export function AdminPanel({
   initialPosts,
   initialCronRuns,
   initialSettings,
+  initialContactMessages,
+  initialSmtp,
 }: {
   enabled: boolean;
   hasAdminUser: boolean;
@@ -77,6 +91,16 @@ export function AdminPanel({
     aiApiBaseUrl: string;
     aiModel: string;
     hasAiApiKey: boolean;
+  };
+  initialContactMessages: ContactInboxEntry[];
+  initialSmtp: {
+    smtpHost: string;
+    smtpPort: string;
+    smtpUser: string;
+    smtpFrom: string;
+    contactNotifyEmail: string;
+    smtpSecure: boolean;
+    hasSmtpPassword: boolean;
   };
 }) {
   const t = useTranslations("admin");
@@ -94,9 +118,9 @@ export function AdminPanel({
   const [editorPublished, setEditorPublished] = useState(false);
   const [editorScheduleDate, setEditorScheduleDate] = useState("");
   const [editingTarget, setEditingTarget] = useState<{ locale: string; slug: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<"editor" | "posts" | "automation" | "settings">(
-    "editor",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "editor" | "posts" | "automation" | "contact" | "settings"
+  >("editor");
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [blocks, setBlocks] = useState<EditorBlock[]>([]);
   const slugPreview = useMemo(
@@ -297,26 +321,31 @@ export function AdminPanel({
         </form>
       ) : (
         <>
-          <div className="flex flex-wrap gap-2 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-2">
-            {[
-              ["editor", t("tabEditor")],
-              ["posts", t("tabPosts")],
-              ["automation", t("tabAutomation")],
-              ["settings", t("tabSettings")],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveTab(id as "editor" | "posts" | "automation" | "settings")}
-                className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-                  activeTab === id
-                    ? "bg-[var(--accent-2)] text-white"
-                    : "bg-[var(--bg)] text-[var(--text)]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="min-w-0 overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-2 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex w-max min-w-0 flex-nowrap gap-2 sm:w-full sm:flex-wrap">
+              {[
+                ["editor", t("tabEditor")],
+                ["posts", t("tabPosts")],
+                ["automation", t("tabAutomation")],
+                ["contact", t("tabContact")],
+                ["settings", t("tabSettings")],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() =>
+                    setActiveTab(id as "editor" | "posts" | "automation" | "contact" | "settings")
+                  }
+                  className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${
+                    activeTab === id
+                      ? "bg-[var(--accent-2)] text-white"
+                      : "bg-[var(--bg)] text-[var(--text)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <form
             className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
@@ -472,6 +501,160 @@ export function AdminPanel({
               )}
             </ul>
           </section>
+
+          <div
+            className={`space-y-6 ${activeTab === "contact" ? "" : "hidden"}`}
+          >
+            <form
+              className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-4 sm:p-6"
+              action={(fd) => {
+                setMessage(null);
+                start(async () => {
+                  const res = await saveSmtpSettings(fd);
+                  setMessage(res.ok ? t("settingsSaved") : t("error"));
+                  if (res.ok) router.refresh();
+                });
+              }}
+            >
+              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+                {t("smtpTitle")}
+              </h2>
+              <p className="mt-2 text-sm text-[var(--muted)]">{t("smtpLead")}</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="min-w-0 text-sm text-[var(--muted)] sm:col-span-2">
+                  {t("smtpNotifyEmail")}
+                  <input
+                    name="contactNotifyEmail"
+                    type="email"
+                    defaultValue={initialSmtp.contactNotifyEmail}
+                    placeholder="you@example.com"
+                    className="mt-1 w-full min-w-0 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="text-sm text-[var(--muted)]">
+                  {t("smtpHost")}
+                  <input
+                    name="smtpHost"
+                    defaultValue={initialSmtp.smtpHost}
+                    placeholder="smtp.example.com"
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="text-sm text-[var(--muted)]">
+                  {t("smtpPort")}
+                  <input
+                    name="smtpPort"
+                    defaultValue={initialSmtp.smtpPort}
+                    placeholder="587"
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="text-sm text-[var(--muted)]">
+                  {t("smtpUser")}
+                  <input
+                    name="smtpUser"
+                    defaultValue={initialSmtp.smtpUser}
+                    autoComplete="off"
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="text-sm text-[var(--muted)]">
+                  {t("smtpPass")}
+                  <input
+                    name="smtpPass"
+                    type="password"
+                    placeholder={
+                      initialSmtp.hasSmtpPassword ? t("smtpPassHintSet") : t("smtpPassHintEmpty")
+                    }
+                    autoComplete="new-password"
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="text-sm text-[var(--muted)] sm:col-span-2">
+                  {t("smtpFrom")}
+                  <input
+                    name="smtpFrom"
+                    defaultValue={initialSmtp.smtpFrom}
+                    placeholder="noreply@example.com"
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text)] sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    name="smtpSecure"
+                    value="on"
+                    defaultChecked={initialSmtp.smtpSecure}
+                    className="rounded border-[var(--border)]"
+                  />
+                  {t("smtpSecure")}
+                </label>
+              </div>
+              <button
+                type="submit"
+                disabled={pending}
+                className="mt-4 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {t("saveSmtp")}
+              </button>
+            </form>
+
+            <section className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-4 sm:p-6">
+              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+                {t("contactInboxTitle")}
+              </h2>
+              <p className="mt-2 text-sm text-[var(--muted)]">{t("contactInboxLead")}</p>
+              {initialContactMessages.length === 0 ? (
+                <p className="mt-4 text-sm text-[var(--muted)]">{t("contactInboxEmpty")}</p>
+              ) : (
+                <ul className="mt-4 space-y-3 text-sm">
+                  {initialContactMessages.map((m) => (
+                    <li
+                      key={m.id}
+                      className="min-w-0 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="break-words font-medium text-[var(--text)]">
+                            {m.name} ·{" "}
+                            <a
+                              className="break-all text-[var(--accent)]"
+                              href={`mailto:${m.email}`}
+                            >
+                              {m.email}
+                            </a>
+                          </p>
+                          <p className="break-words text-xs text-[var(--muted)]">
+                            {m.createdAt} · {m.locale.toUpperCase()}
+                            {m.ip ? ` · ${m.ip}` : ""}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => {
+                            if (!window.confirm(t("contactDeleteConfirm"))) return;
+                            setMessage(null);
+                            start(async () => {
+                              const res = await deleteContactMessageAdmin(m.id);
+                              setMessage(res.ok ? t("deleted") : t("error"));
+                              if (res.ok) router.refresh();
+                            });
+                          }}
+                          className="shrink-0 rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-2 py-1 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
+                        >
+                          {t("delete")}
+                        </button>
+                      </div>
+                      <p className="mt-2 whitespace-pre-wrap break-words text-[var(--muted)]">
+                        {m.body}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
 
           <section
             className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${

@@ -1,3 +1,4 @@
+import { LINKEDIN_PROFILE_URL } from "@/lib/social";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
 
@@ -54,7 +55,7 @@ export default async function AboutPage({ params }: Props) {
       </section>
 
       <a
-        href="https://www.linkedin.com/in/ttayfun/"
+        href={LINKEDIN_PROFILE_URL}
         target="_blank"
         rel="noopener noreferrer"
         className="mt-8 inline-flex rounded-lg bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#041016] transition hover:brightness-110"

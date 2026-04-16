@@ -1,9 +1,11 @@
 import { AdminPanel } from "@/components/AdminPanel";
 import {
   getAdminAiSettings,
+  getAdminSmtpSettings,
   getPublicSiteSettings,
   hasAdminUser,
   listAdminBlogPosts,
+  listContactMessages,
   listCronRuns,
   pingD1,
 } from "@/lib/d1";
@@ -33,8 +35,10 @@ export default async function AdminPage({ params }: Props) {
   const unlocked = jar.get("admin_ok")?.value === "1";
   const posts = unlocked ? await listAdminBlogPosts(100) : [];
   const cronRuns = unlocked ? await listCronRuns(15) : [];
+  const contactMessages = unlocked ? await listContactMessages(80) : [];
   const marketing = enabled ? await getPublicSiteSettings() : null;
   const ai = enabled ? await getAdminAiSettings() : null;
+  const smtp = unlocked && enabled ? await getAdminSmtpSettings() : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
@@ -68,6 +72,24 @@ export default async function AdminPage({ params }: Props) {
             aiApiBaseUrl: ai?.aiApiBaseUrl ?? "",
             aiModel: ai?.aiModel ?? "",
             hasAiApiKey: Boolean(ai?.aiApiKey),
+          }}
+          initialContactMessages={contactMessages.map((m) => ({
+            id: m.id,
+            name: m.name,
+            email: m.email,
+            body: m.body,
+            locale: m.locale,
+            ip: m.ip,
+            createdAt: m.createdAt,
+          }))}
+          initialSmtp={{
+            smtpHost: smtp?.smtpHost ?? "",
+            smtpPort: smtp?.smtpPort ?? "587",
+            smtpUser: smtp?.smtpUser ?? "",
+            smtpFrom: smtp?.smtpFrom ?? "",
+            contactNotifyEmail: smtp?.contactNotifyEmail ?? "",
+            smtpSecure: Boolean(smtp?.smtpSecure),
+            hasSmtpPassword: Boolean(smtp?.smtpPass),
           }}
         />
       </div>

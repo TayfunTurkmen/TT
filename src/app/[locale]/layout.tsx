@@ -31,7 +31,7 @@ export default async function LocaleLayout({ children, params }: Props) {
       <div className="grid-bg" aria-hidden />
       <div className="relative z-10 flex min-h-screen flex-col">
         <SiteHeader locale={locale} />
-        <main className="flex-1">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
         <SiteFooter locale={locale} />
       </div>
     </NextIntlClientProvider>
