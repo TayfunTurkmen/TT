@@ -18,6 +18,6 @@ jobs:
             echo "SITE_URL or CRON_SECRET missing"
             exit 1
           fi
-          curl -sS -X POST "$SITE_URL/api/cron/publish" \
+          curl --fail-with-body --retry 2 --retry-delay 2 -sS -X POST "$SITE_URL/api/cron/publish" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json"

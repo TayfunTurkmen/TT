@@ -3,7 +3,9 @@
 import { generateDraft, translateDraft, type GeneratedDraft, type LocaleCode } from "@/lib/auto-blog";
 import { buildWebDualDrafts } from "@/lib/auto-blog-web";
 import {
+  autoPublishScheduledPosts,
   deleteBlogPost,
+  logCronRun,
   publishBlogPost,
   registerInitialAdmin,
   savePublicSiteSettings,
@@ -24,7 +26,8 @@ export type AdminResult =
         | "bulkSaved"
         | "settingsSaved"
         | "publishedNow"
-        | "deleted";
+        | "deleted"
+        | "cronRun";
     }
   | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" };
 
@@ -333,4 +336,65 @@ export async function deleteAdminPost(locale: string, slug: string): Promise<Adm
   const ok = await deleteBlogPost(safeLocale, safeSlug);
   if (!ok) return { ok: false, error: "db" };
   return { ok: true, message: "deleted" };
+}
+
+export async function runCronNow(): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  try {
+    const publishedCount = await autoPublishScheduledPosts(100);
+    await logCronRun({
+      source: "admin-manual",
+      ok: true,
+      publishedCount,
+      error: null,
+    });
+    return { ok: true, message: "cronRun" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "manual-cron-failed";
+    await logCronRun({
+      source: "admin-manual",
+      ok: false,
+      publishedCount: 0,
+      error: message,
+    });
+    return { ok: false, error: "db" };
+  }
+}
+
+export async function generateEditorDraft(formData: FormData): Promise<
+  | { ok: true; title: string; excerpt: string; content: string; tags: string }
+  | { ok: false; error: "locked" | "invalid" | "db" }
+> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  const locale = String(formData.get("locale") ?? "en");
+  const topic = String(formData.get("topic") ?? "").trim();
+  const sourceUrlsRaw = String(formData.get("sourceUrls") ?? "");
+  const sourceUrls = sourceUrlsRaw
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+
+  if (!topic || (locale !== "en" && locale !== "tr")) return { ok: false, error: "invalid" };
+
+  try {
+    const draft = await generateDraft({
+      topic,
+      locale,
+      sourceUrls: sourceUrls.length ? sourceUrls : undefined,
+    });
+    return {
+      ok: true,
+      title: draft.title,
+      excerpt: draft.excerpt,
+      content: draft.content,
+      tags: draft.tags.join(", "),
+    };
+  } catch {
+    return { ok: false, error: "db" };
+  }
 }

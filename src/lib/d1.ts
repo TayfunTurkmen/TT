@@ -48,6 +48,15 @@ export type PublicSiteSettings = {
   adSlotBlogPost: string;
 };
 
+export type CronRun = {
+  id: number;
+  source: string;
+  ok: boolean;
+  publishedCount: number;
+  error: string | null;
+  createdAt: string;
+};
+
 function getDb(): D1Like | null {
   try {
     const { env } = getCloudflareContext();
@@ -85,6 +94,13 @@ export async function ensureD1Schema() {
     await db
       .prepare(
         "CREATE TABLE IF NOT EXISTS site_settings (setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
+      )
+      .bind()
+      .run();
+
+    await db
+      .prepare(
+        "CREATE TABLE IF NOT EXISTS cron_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL DEFAULT 'api', ok INTEGER NOT NULL DEFAULT 0, published_count INTEGER NOT NULL DEFAULT 0, error TEXT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
       )
       .bind()
       .run();
@@ -416,6 +432,72 @@ export async function deleteBlogPost(locale: string, slug: string): Promise<bool
     return true;
   } catch {
     return false;
+  }
+}
+
+type RawCronRun = {
+  id: number;
+  source: string;
+  ok: number;
+  published_count: number;
+  error: string | null;
+  created_at: string;
+};
+
+function mapCronRun(row: RawCronRun): CronRun {
+  return {
+    id: row.id,
+    source: row.source,
+    ok: Boolean(row.ok),
+    publishedCount: row.published_count,
+    error: row.error,
+    createdAt: row.created_at,
+  };
+}
+
+export async function logCronRun(input: {
+  source: string;
+  ok: boolean;
+  publishedCount: number;
+  error?: string | null;
+}): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+
+  try {
+    await db
+      .prepare(
+        "INSERT INTO cron_runs (source, ok, published_count, error) VALUES (?, ?, ?, ?)",
+      )
+      .bind(
+        input.source || "api",
+        input.ok ? 1 : 0,
+        Math.max(0, input.publishedCount || 0),
+        input.error ?? null,
+      )
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function listCronRuns(limit = 20): Promise<CronRun[]> {
+  const db = getDb();
+  if (!db) return [];
+  if (!(await ensureD1Schema())) return [];
+
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT id, source, ok, published_count, error, created_at FROM cron_runs ORDER BY id DESC LIMIT ?",
+      )
+      .bind(Math.max(1, Math.min(limit, 100)))
+      .all<RawCronRun>();
+    return rows.results.map(mapCronRun);
+  } catch {
+    return [];
   }
 }
 

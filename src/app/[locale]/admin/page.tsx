@@ -1,5 +1,11 @@
 import { AdminPanel } from "@/components/AdminPanel";
-import { getPublicSiteSettings, hasAdminUser, listAdminBlogPosts, pingD1 } from "@/lib/d1";
+import {
+  getPublicSiteSettings,
+  hasAdminUser,
+  listAdminBlogPosts,
+  listCronRuns,
+  pingD1,
+} from "@/lib/d1";
 import { cookies } from "next/headers";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
@@ -25,6 +31,7 @@ export default async function AdminPage({ params }: Props) {
   const jar = await cookies();
   const unlocked = jar.get("admin_ok")?.value === "1";
   const posts = unlocked ? await listAdminBlogPosts(100) : [];
+  const cronRuns = unlocked ? await listCronRuns(15) : [];
   const marketing = enabled ? await getPublicSiteSettings() : null;
 
   return (
@@ -46,6 +53,7 @@ export default async function AdminPage({ params }: Props) {
             updatedAt: p.updatedAt,
             scheduledFor: p.scheduledFor,
           }))}
+          initialCronRuns={cronRuns}
           initialSettings={{
             adsenseClient: marketing?.adsenseClient ?? "",
             analyticsMeasurementId: marketing?.analyticsMeasurementId ?? "",
