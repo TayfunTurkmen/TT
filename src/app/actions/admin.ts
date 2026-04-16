@@ -8,6 +8,7 @@ import {
   clearAdminLoginFailures,
   deleteBlogPostsBySlug,
   deleteBlogPost,
+  deleteContactMessage,
   getAdminBlogPost,
   getAdminSecuritySettings,
   isAdminLoginBlocked,
@@ -15,12 +16,14 @@ import {
   publishBlogPostsBySlug,
   registerAdminLoginFailure,
   registerInitialAdmin,
-  savePublicSiteSettings,
   saveAdminAiSettings,
+  saveAdminSmtpSettings,
+  savePublicSiteSettings,
   saveTurnstileSecret,
   upsertBlogPost,
   verifyAdminUser,
 } from "@/lib/d1";
+import { verifyTurnstileResponse } from "@/lib/turnstile";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
@@ -56,24 +59,7 @@ async function verifyTurnstileIfEnabled(formData: FormData, ip: string): Promise
   const settings = await getAdminSecuritySettings();
   if (!settings.turnstileSecretKey) return true;
   const token = String(formData.get("cf-turnstile-response") ?? "").trim();
-  if (!token) return false;
-
-  try {
-    const body = new URLSearchParams();
-    body.set("secret", settings.turnstileSecretKey);
-    body.set("response", token);
-    body.set("remoteip", ip);
-    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
-    });
-    if (!res.ok) return false;
-    const data = (await res.json()) as { success?: boolean };
-    return Boolean(data.success);
-  } catch {
-    return false;
-  }
+  return verifyTurnstileResponse(settings.turnstileSecretKey, token, ip);
 }
 
 export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
@@ -478,6 +464,41 @@ export async function saveMarketingSettings(formData: FormData): Promise<AdminRe
   });
   if (!ok || !secOk || !aiOk) return { ok: false, error: "db" };
   return { ok: true, message: "settingsSaved" };
+}
+
+export async function saveSmtpSettings(formData: FormData): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  const smtpHost = String(formData.get("smtpHost") ?? "").trim() || null;
+  const smtpPort = String(formData.get("smtpPort") ?? "587").trim() || "587";
+  const smtpUser = String(formData.get("smtpUser") ?? "").trim() || null;
+  const smtpFrom = String(formData.get("smtpFrom") ?? "").trim() || null;
+  const contactNotifyEmail = String(formData.get("contactNotifyEmail") ?? "").trim() || null;
+  const smtpSecure = String(formData.get("smtpSecure") ?? "") === "on";
+  const smtpPassRaw = String(formData.get("smtpPass") ?? "").trim();
+
+  const ok = await saveAdminSmtpSettings({
+    smtpHost,
+    smtpPort,
+    smtpUser,
+    smtpFrom,
+    smtpSecure,
+    contactNotifyEmail,
+    smtpPass: smtpPassRaw ? smtpPassRaw : undefined,
+  });
+  if (!ok) return { ok: false, error: "db" };
+  return { ok: true, message: "settingsSaved" };
+}
+
+export async function deleteContactMessageAdmin(id: number): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  const safeId = Number(id);
+  if (!Number.isFinite(safeId) || safeId < 1) return { ok: false, error: "invalid" };
+  const ok = await deleteContactMessage(safeId);
+  if (!ok) return { ok: false, error: "db" };
+  return { ok: true, message: "deleted" };
 }
 
 export async function publishAdminPost(locale: string, slug: string): Promise<AdminResult> {

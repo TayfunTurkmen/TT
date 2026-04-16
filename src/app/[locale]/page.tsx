@@ -1,4 +1,7 @@
+import { ContactForm } from "@/components/ContactForm";
 import { Link } from "@/i18n/routing";
+import { getPublicSiteSettings, isContactFormConfigured } from "@/lib/d1";
+import { LINKEDIN_PROFILE_URL } from "@/lib/social";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
 
@@ -21,30 +24,32 @@ export default async function HomePage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "home" });
+  const site = await getPublicSiteSettings();
+  const contactReady = await isContactFormConfigured();
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative min-w-0 overflow-hidden">
       <div className="hero-orbit -right-24 -top-24 sm:right-10 sm:top-0" aria-hidden />
-      <section className="relative mx-auto max-w-4xl px-4 pb-20 pt-16 sm:px-6 sm:pt-24">
+      <section className="relative mx-auto w-full min-w-0 max-w-4xl px-4 pb-12 pt-12 sm:px-6 sm:pb-20 sm:pt-24">
         <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--chip)] px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-[var(--muted)]">
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" aria-hidden />
           {t("badge")}
         </p>
-        <h1 className="max-w-2xl font-[family-name:var(--font-display)] text-4xl font-bold leading-tight tracking-tight text-[var(--text)] sm:text-5xl">
+        <h1 className="max-w-2xl font-[family-name:var(--font-display)] text-3xl font-bold leading-tight tracking-tight text-[var(--text)] sm:text-4xl md:text-5xl">
           {t("headline")}
         </h1>
-        <p className="mt-5 max-w-xl text-base text-[var(--muted)]">{t("sub")}</p>
-        <p className="mt-3 text-sm text-[var(--muted)]">{t("minimalMeta")}</p>
-        <div className="mt-8 flex flex-wrap gap-3">
+        <p className="mt-4 max-w-xl text-base leading-relaxed text-[var(--muted)] sm:mt-5">{t("sub")}</p>
+        <p className="mt-3 break-words text-sm text-[var(--muted)]">{t("minimalMeta")}</p>
+        <div className="mt-8 flex w-full max-w-md flex-col gap-3 sm:max-w-none sm:flex-row sm:flex-wrap">
           <Link
             href="/blog"
-            className="inline-flex items-center justify-center rounded-lg bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#041016] transition hover:brightness-110"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#041016] transition hover:brightness-110 sm:w-auto"
           >
             {t("ctaBlog")}
           </Link>
           <Link
             href="/about"
-            className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] px-5 py-2.5 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--chip)]"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-[var(--border)] px-5 py-2.5 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--chip)] sm:w-auto"
           >
             {t("ctaAbout")}
           </Link>
@@ -53,8 +58,8 @@ export default async function HomePage({ params }: Props) {
           <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
             {t("cvTitle")}
           </h2>
-          <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--chip)] p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--chip)] p-3 sm:p-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <article className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
                 <p className="flex items-center gap-2 text-xs text-[var(--muted)]">
                   <span aria-hidden className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--chip)]">
@@ -64,7 +69,7 @@ export default async function HomePage({ params }: Props) {
                   </span>
                   {t("cvNameLabel")}
                 </p>
-                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{t("cvNameValue")}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-[var(--text)]">{t("cvNameValue")}</p>
               </article>
               <article className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
                 <p className="flex items-center gap-2 text-xs text-[var(--muted)]">
@@ -75,7 +80,7 @@ export default async function HomePage({ params }: Props) {
                   </span>
                   {t("cvRoleLabel")}
                 </p>
-                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{t("cvRoleValue")}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-[var(--text)]">{t("cvRoleValue")}</p>
               </article>
               <article className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
                 <p className="flex items-center gap-2 text-xs text-[var(--muted)]">
@@ -86,7 +91,7 @@ export default async function HomePage({ params }: Props) {
                   </span>
                   {t("cvExperienceLabel")}
                 </p>
-                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{t("cvExperienceValue")}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-[var(--text)]">{t("cvExperienceValue")}</p>
               </article>
               <article className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
                 <p className="flex items-center gap-2 text-xs text-[var(--muted)]">
@@ -97,10 +102,31 @@ export default async function HomePage({ params }: Props) {
                   </span>
                   {t("cvLocationLabel")}
                 </p>
-                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{t("cvLocationValue")}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-[var(--text)]">{t("cvLocationValue")}</p>
+              </article>
+              <article className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3 sm:col-span-2">
+                <p className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                  <span aria-hidden className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--chip)]">
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" aria-hidden>
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                    </svg>
+                  </span>
+                  {t("cvLinkedInLabel")}
+                </p>
+                <a
+                  href={LINKEDIN_PROFILE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-flex break-all text-sm font-semibold text-[var(--accent)] underline-offset-2 hover:underline"
+                >
+                  {t("cvLinkedInCta")}
+                </a>
               </article>
             </div>
-            <ul className="mt-4 flex flex-wrap gap-2 border-t border-[var(--border)] pt-4" aria-label={t("cvStackAria")}>
+            <ul
+              className="mt-4 flex flex-wrap gap-2 border-t border-[var(--border)] pt-4 [-webkit-overflow-scrolling:touch]"
+              aria-label={t("cvStackAria")}
+            >
               <li className="list-none">
                 <span
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg)] text-[var(--accent)]"
@@ -161,6 +187,14 @@ export default async function HomePage({ params }: Props) {
               </li>
             </ul>
           </div>
+        </section>
+
+        <section className="mt-10 w-full min-w-0 border-t border-[var(--border)] pt-8 sm:mt-14 sm:pt-12">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+            {t("contactTitle")}
+          </h2>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--muted)]">{t("contactLead")}</p>
+          <ContactForm enabled={contactReady} turnstileSiteKey={site.turnstileSiteKey} />
         </section>
       </section>
     </div>

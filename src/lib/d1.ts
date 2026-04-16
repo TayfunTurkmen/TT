@@ -69,6 +69,27 @@ export type AdminAiSettings = {
   aiModel: string | null;
 };
 
+export type AdminSmtpSettings = {
+  smtpHost: string | null;
+  smtpPort: string | null;
+  smtpUser: string | null;
+  smtpPass: string | null;
+  smtpFrom: string | null;
+  smtpSecure: boolean;
+  contactNotifyEmail: string | null;
+};
+
+export type ContactMessage = {
+  id: number;
+  name: string;
+  email: string;
+  body: string;
+  locale: string;
+  ip: string | null;
+  userAgent: string | null;
+  createdAt: string;
+};
+
 function getDb(): D1Like | null {
   try {
     const { env } = getCloudflareContext();
@@ -120,6 +141,13 @@ export async function ensureD1Schema() {
     await db
       .prepare(
         "CREATE TABLE IF NOT EXISTS admin_login_attempts (attempt_key TEXT PRIMARY KEY, fail_count INTEGER NOT NULL DEFAULT 0, blocked_until TEXT NULL, last_failed_at TEXT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
+      )
+      .bind()
+      .run();
+
+    await db
+      .prepare(
+        "CREATE TABLE IF NOT EXISTS contact_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, body TEXT NOT NULL, locale TEXT NOT NULL, ip TEXT NULL, user_agent TEXT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
       )
       .bind()
       .run();
@@ -812,4 +840,178 @@ export async function saveAdminAiSettings(input: {
     if (!keyOk) return false;
   }
   return true;
+}
+
+export async function isContactFormConfigured(): Promise<boolean> {
+  const sec = await getAdminSecuritySettings();
+  return Boolean(sec.turnstileSiteKey && sec.turnstileSecretKey);
+}
+
+export async function getAdminSmtpSettings(): Promise<AdminSmtpSettings> {
+  const db = getDb();
+  if (!db) {
+    return {
+      smtpHost: null,
+      smtpPort: "587",
+      smtpUser: null,
+      smtpPass: null,
+      smtpFrom: null,
+      smtpSecure: false,
+      contactNotifyEmail: null,
+    };
+  }
+  if (!(await ensureD1Schema())) {
+    return {
+      smtpHost: null,
+      smtpPort: "587",
+      smtpUser: null,
+      smtpPass: null,
+      smtpFrom: null,
+      smtpSecure: false,
+      contactNotifyEmail: null,
+    };
+  }
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom', 'smtpSecure', 'contactNotifyEmail')",
+      )
+      .bind()
+      .all<SiteSettingRow>();
+    const map = new Map(rows.results.map((row) => [row.setting_key, row.setting_value]));
+    return {
+      smtpHost: normalizeNullable(map.get("smtpHost")),
+      smtpPort: normalizeNullable(map.get("smtpPort")) ?? "587",
+      smtpUser: normalizeNullable(map.get("smtpUser")),
+      smtpPass: normalizeNullable(map.get("smtpPass")),
+      smtpFrom: normalizeNullable(map.get("smtpFrom")),
+      smtpSecure: map.get("smtpSecure") === "1",
+      contactNotifyEmail: normalizeNullable(map.get("contactNotifyEmail")),
+    };
+  } catch {
+    return {
+      smtpHost: null,
+      smtpPort: "587",
+      smtpUser: null,
+      smtpPass: null,
+      smtpFrom: null,
+      smtpSecure: false,
+      contactNotifyEmail: null,
+    };
+  }
+}
+
+export async function saveAdminSmtpSettings(input: {
+  smtpHost: string | null;
+  smtpPort: string | null;
+  smtpUser: string | null;
+  smtpFrom: string | null;
+  smtpSecure: boolean;
+  contactNotifyEmail: string | null;
+  smtpPass?: string | null;
+}): Promise<boolean> {
+  const hostOk = await saveSiteSetting("smtpHost", input.smtpHost);
+  if (!hostOk) return false;
+  const portOk = await saveSiteSetting("smtpPort", input.smtpPort || "587");
+  if (!portOk) return false;
+  const userOk = await saveSiteSetting("smtpUser", input.smtpUser);
+  if (!userOk) return false;
+  const fromOk = await saveSiteSetting("smtpFrom", input.smtpFrom);
+  if (!fromOk) return false;
+  const notifyOk = await saveSiteSetting("contactNotifyEmail", input.contactNotifyEmail);
+  if (!notifyOk) return false;
+  const secureOk = await saveSiteSetting("smtpSecure", input.smtpSecure ? "1" : "0");
+  if (!secureOk) return false;
+  if (input.smtpPass !== undefined) {
+    const pass = normalizeNullable(input.smtpPass);
+    if (pass) {
+      const passOk = await saveSiteSetting("smtpPass", pass);
+      if (!passOk) return false;
+    }
+  }
+  return true;
+}
+
+export async function insertContactMessage(input: {
+  name: string;
+  email: string;
+  body: string;
+  locale: string;
+  ip: string | null;
+  userAgent: string | null;
+}): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare(
+        "INSERT INTO contact_messages (name, email, body, locale, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .bind(
+        input.name,
+        input.email,
+        input.body,
+        input.locale,
+        input.ip,
+        input.userAgent,
+      )
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+type RawContactMessage = {
+  id: number;
+  name: string;
+  email: string;
+  body: string;
+  locale: string;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
+};
+
+function mapContactMessage(row: RawContactMessage): ContactMessage {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    body: row.body,
+    locale: row.locale,
+    ip: row.ip,
+    userAgent: row.user_agent,
+    createdAt: row.created_at,
+  };
+}
+
+export async function listContactMessages(limit = 50): Promise<ContactMessage[]> {
+  const db = getDb();
+  if (!db) return [];
+  if (!(await ensureD1Schema())) return [];
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT id, name, email, body, locale, ip, user_agent, created_at FROM contact_messages ORDER BY id DESC LIMIT ?",
+      )
+      .bind(Math.max(1, Math.min(limit, 200)))
+      .all<RawContactMessage>();
+    return rows.results.map(mapContactMessage);
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteContactMessage(id: number): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db.prepare("DELETE FROM contact_messages WHERE id = ?").bind(id).run();
+    return true;
+  } catch {
+    return false;
+  }
 }
