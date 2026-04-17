@@ -39,6 +39,67 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@supports (animation-timeline: scroll(root block)) {
+  @media (prefers-reduced-motion: no-preference) {
+    .grid-bg {
+      animation-name: grid-bg-scroll-drift;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: scroll(root block);
+      animation-range: 0% 65%;
+    }
+
+    .noise-layer {
+      animation-name: noise-layer-scroll-drift;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: scroll(root block);
+      animation-range: 0% 65%;
+    }
+
+    .hero-orbit {
+      animation-name: hero-orbit-scroll-drift;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: scroll(root block);
+      animation-range: 0% 55%;
+    }
+  }
+}
+
+@keyframes grid-bg-scroll-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 12px, 0);
+  }
+}
+
+@keyframes noise-layer-scroll-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+@keyframes hero-orbit-scroll-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 20px, 0);
+  }
+}
+
 .grid-bg {
   pointer-events: none;
   position: fixed;
