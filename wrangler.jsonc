@@ -16,6 +16,7 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // Workers Observability: keep explicit in git so preview/production deployments stay consistent (not dashboard-only).
   "observability": {
     "enabled": false,
     "head_sampling_rate": 1,
