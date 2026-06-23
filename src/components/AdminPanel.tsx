@@ -2,8 +2,11 @@
 
 import {
   bulkDeleteAdminPostGroups,
+  createAdminTwoFactorSetup,
   deleteAdminPostGroup,
   deleteContactMessageAdmin,
+  disableAdminTwoFactor,
+  enableAdminTwoFactor,
   generateEditorDraft,
   generateBulkAiDrafts,
   publishAdminPost,
@@ -12,6 +15,7 @@ import {
   saveAdminPost,
   saveSmtpSettings,
   setupInitialAdmin,
+  syncSitePostsToAdmin,
   updateAdminPost,
   unlockAdmin,
 } from "@/app/actions/admin";
@@ -29,6 +33,7 @@ type AdminPost = {
   tags: string[];
   published: boolean;
   updatedAt: string;
+  featuredImage?: string | null;
   scheduledFor?: string | null;
 };
 
@@ -76,6 +81,7 @@ export function AdminPanel({
   initialSettings,
   initialContactMessages,
   initialSmtp,
+  initialTwoFactor,
 }: {
   enabled: boolean;
   hasAdminUser: boolean;
@@ -94,6 +100,7 @@ export function AdminPanel({
   };
   initialContactMessages: ContactInboxEntry[];
   initialSmtp: {
+    hasBrevoApiKey: boolean;
     smtpHost: string;
     smtpPort: string;
     smtpUser: string;
@@ -101,6 +108,10 @@ export function AdminPanel({
     contactNotifyEmail: string;
     smtpSecure: boolean;
     hasSmtpPassword: boolean;
+  };
+  initialTwoFactor: {
+    enabled: boolean;
+    hasSecret: boolean;
   };
 }) {
   const t = useTranslations("admin");
@@ -121,6 +132,12 @@ export function AdminPanel({
   const [activeTab, setActiveTab] = useState<
     "editor" | "posts" | "automation" | "contact" | "settings"
   >("editor");
+  const [formRenderedAt] = useState(() => String(Date.now()));
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(initialTwoFactor.enabled);
+  const [twoFactorSetup, setTwoFactorSetup] = useState<{
+    manualKey: string;
+    otpauthUri: string;
+  } | null>(null);
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [blocks, setBlocks] = useState<EditorBlock[]>([]);
   const slugPreview = useMemo(
@@ -181,6 +198,23 @@ export function AdminPanel({
     setEditorContent(markdown);
   };
 
+  const uploadMediaToR2 = async (file: File) => {
+    const fd = new FormData();
+    fd.set("file", file);
+    const response = await fetch("/api/r2/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const payload = (await response.json()) as
+      | { ok: true; url: string }
+      | { ok: false; error: string };
+    if (!response.ok || !payload.ok) {
+      throw new Error("upload failed");
+    }
+    const markdown = `![${file.name.replace(/\.[^.]+$/, "")}](${payload.url})`;
+    setEditorContent((prev) => (prev.trim() ? `${prev.trim()}\n\n${markdown}` : markdown));
+  };
+
   const resetEditor = () => {
     setEditingTarget(null);
     setEditorTitle("");
@@ -236,6 +270,15 @@ export function AdminPanel({
             });
           }}
         >
+          <input type="hidden" name="formRenderedAt" value={formRenderedAt} />
+          <input
+            type="text"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            className="hidden"
+            aria-hidden="true"
+          />
           <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
             {t("setupTitle")}
           </h2>
@@ -281,7 +324,9 @@ export function AdminPanel({
                     ? t("loginFailed")
                     : res.error === "invalid"
                       ? t("setupInvalid")
-                      : t("error");
+                      : res.error === "twoFactor"
+                        ? t("twoFactorInvalid")
+                        : t("error");
                 setMessage(err);
                 return;
               }
@@ -290,6 +335,15 @@ export function AdminPanel({
             });
           }}
         >
+          <input type="hidden" name="formRenderedAt" value={formRenderedAt} />
+          <input
+            type="text"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            className="hidden"
+            aria-hidden="true"
+          />
           <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
             {t("unlock")}
           </h2>
@@ -304,6 +358,14 @@ export function AdminPanel({
             type="password"
             className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
             placeholder={t("password")}
+          />
+          <input
+            name="totp"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={6}
+            className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
+            placeholder={t("twoFactorCode")}
           />
           {initialSettings.turnstileSiteKey ? (
             <div
@@ -321,6 +383,56 @@ export function AdminPanel({
         </form>
       ) : (
         <>
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              [t("publishedPosts"), initialPosts.filter((post) => post.published).length],
+              [t("drafts"), initialPosts.filter((post) => !post.published && !post.scheduledFor).length],
+              ["Scheduled", initialPosts.filter((post) => post.scheduledFor).length],
+              ["Comments", 0],
+            ].map(([label, value]) => (
+              <article key={String(label)} className="rounded-lg border border-[var(--border)] bg-[var(--chip)] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted)]">{label}</p>
+                <p className="mt-2 text-3xl font-black text-[var(--text)]">{value}</p>
+              </article>
+            ))}
+          </section>
+          <section className="rounded-lg border border-[var(--border)] bg-[var(--chip)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+                WordPress-style CMS map
+              </h2>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  setMessage(null);
+                  start(async () => {
+                    const res = await syncSitePostsToAdmin();
+                    setMessage(res.ok ? t("sitePostsSynced") : t("error"));
+                    if (res.ok) router.refresh();
+                  });
+                }}
+                className="rounded-lg bg-[var(--accent-2)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {t("syncSitePosts")}
+              </button>
+            </div>
+            <div className="mt-3 grid gap-2 text-sm text-[var(--muted)] sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                "Posts: draft, published, scheduled, archived",
+                "Pages: about, contact, privacy, cookies, terms",
+                "Taxonomy: parent categories and tags",
+                "Media: WebP/AVIF-ready metadata model",
+                "Ads: header, sidebar, in-article, mobile, sticky",
+                "SEO: sitemap, robots, canonical, schema, redirects",
+                "Users: admin, editor, author roles",
+                "Comments: approve, reject, spam, reply",
+                "Analytics: GA4, Search Console, Meta Pixel fields",
+              ].map((item) => (
+                <p key={item} className="rounded-md border border-[var(--border)] bg-[var(--bg)] p-3">{item}</p>
+              ))}
+            </div>
+          </section>
           <div className="min-w-0 overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-2 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex w-max min-w-0 flex-nowrap gap-2 sm:w-full sm:flex-wrap">
               {[
@@ -363,6 +475,117 @@ export function AdminPanel({
               {t("marketingTitle")}
             </h2>
             <p className="mt-2 text-sm text-[var(--muted)]">{t("marketingLead")}</p>
+            <section className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-[var(--text)]">{t("twoFactorTitle")}</h3>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    {twoFactorEnabled ? t("twoFactorEnabled") : t("twoFactorDisabled")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={pending || twoFactorEnabled}
+                  onClick={() => {
+                    setMessage(null);
+                    start(async () => {
+                      const res = await createAdminTwoFactorSetup();
+                      if (!res.ok) {
+                        setMessage(t("error"));
+                        return;
+                      }
+                      setTwoFactorSetup({
+                        manualKey: res.manualKey,
+                        otpauthUri: res.otpauthUri,
+                      });
+                      setMessage(t("twoFactorScan"));
+                    });
+                  }}
+                  className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text)] disabled:opacity-50"
+                >
+                  {twoFactorEnabled ? t("twoFactorActive") : t("twoFactorStart")}
+                </button>
+              </div>
+              {twoFactorSetup ? (
+                <div className="mt-3 space-y-3">
+                  <a
+                    href={twoFactorSetup.otpauthUri}
+                    className="inline-flex rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text)]"
+                  >
+                    {t("twoFactorOpen")}
+                  </a>
+                  <p className="break-all rounded-md border border-[var(--border)] p-3 font-mono text-xs text-[var(--muted)]">
+                    {twoFactorSetup.manualKey}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      name="totp"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      placeholder={t("twoFactorCode")}
+                      className="min-w-[12rem] rounded-lg border border-[var(--border)] bg-[var(--chip)] px-3 py-2 text-sm text-[var(--text)]"
+                    />
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={(event) => {
+                        const form = event.currentTarget.closest("form");
+                        if (!form) return;
+                        const fd = new FormData(form);
+                        setMessage(null);
+                        start(async () => {
+                          const res = await enableAdminTwoFactor(fd);
+                          setMessage(res.ok ? t("twoFactorEnabled") : t("twoFactorInvalid"));
+                          if (res.ok) {
+                            setTwoFactorEnabled(true);
+                            setTwoFactorSetup(null);
+                          }
+                        });
+                      }}
+                      className="rounded-lg bg-[var(--accent-2)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                    >
+                      {t("twoFactorEnable")}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {twoFactorEnabled ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    name="disableTotp"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder={t("twoFactorCode")}
+                    className="min-w-[12rem] rounded-lg border border-[var(--border)] bg-[var(--chip)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={(event) => {
+                      const form = event.currentTarget.closest("form");
+                      if (!form) return;
+                      const fd = new FormData();
+                      const input = form.elements.namedItem("disableTotp");
+                      if (input instanceof HTMLInputElement) fd.set("totp", input.value);
+                      setMessage(null);
+                      start(async () => {
+                        const res = await disableAdminTwoFactor(fd);
+                        setMessage(res.ok ? t("settingsSaved") : t("twoFactorInvalid"));
+                        if (res.ok) {
+                          setTwoFactorEnabled(false);
+                          setTwoFactorSetup(null);
+                        }
+                      });
+                    }}
+                    className="rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-3 py-2 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
+                  >
+                    {t("twoFactorDisable")}
+                  </button>
+                </div>
+              ) : null}
+            </section>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-[var(--muted)]">
                 {t("adsenseClient")}
@@ -412,7 +635,7 @@ export function AdminPanel({
                 <input
                   name="turnstileSecretKey"
                   type="password"
-                  placeholder="Update secret key"
+                  placeholder={locale === "tr" ? "Gizli anahtarı güncelle" : "Update secret key"}
                   className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                 />
               </label>
@@ -528,6 +751,18 @@ export function AdminPanel({
                     type="email"
                     defaultValue={initialSmtp.contactNotifyEmail}
                     placeholder="you@example.com"
+                    className="mt-1 w-full min-w-0 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="min-w-0 text-sm text-[var(--muted)] sm:col-span-2">
+                  {t("brevoApiKey")}
+                  <input
+                    name="brevoApiKey"
+                    type="password"
+                    placeholder={
+                      initialSmtp.hasBrevoApiKey ? t("brevoApiKeyHintSet") : t("brevoApiKeyHintEmpty")
+                    }
+                    autoComplete="new-password"
                     className="mt-1 w-full min-w-0 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                   />
                 </label>
@@ -714,6 +949,29 @@ export function AdminPanel({
               >
                 {t("builderAiFill")}
               </button>
+              <label className="cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-semibold text-[var(--text)]">
+                {t("mediaUpload")}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={pending}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (!file) return;
+                    setMessage(null);
+                    start(async () => {
+                      try {
+                        await uploadMediaToR2(file);
+                        setMessage(t("mediaUploaded"));
+                      } catch {
+                        setMessage(t("mediaUploadError"));
+                      }
+                    });
+                  }}
+                />
+              </label>
               <button type="button" onClick={() => addBlock("heading")} className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs text-[var(--text)]">+H</button>
               <button type="button" onClick={() => addBlock("paragraph")} className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs text-[var(--text)]">+P</button>
               <button type="button" onClick={() => addBlock("list")} className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs text-[var(--text)]">+List</button>
@@ -1000,6 +1258,11 @@ export function AdminPanel({
                         <p className="text-xs text-[var(--muted)]">
                           ({group.slug}) · {group.locales.map((p) => p.locale.toUpperCase()).join("/")}
                         </p>
+                        {primary.featuredImage ? (
+                          <p className="mt-1 max-w-[22rem] truncate text-xs text-[var(--muted)]">
+                            thumb: {primary.featuredImage}
+                          </p>
+                        ) : null}
                       </div>
                       <span className="text-xs sm:text-sm">
                         {isPublished ? "published" : scheduled ? `scheduled: ${scheduled.slice(0, 10)}` : "draft"}

@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/"],
+      disallow: ["/api/", "/en/admin", "/tr/admin"],
     },
     sitemap: "https://tayfunturkmen.com/sitemap.xml",
     host: "https://tayfunturkmen.com",

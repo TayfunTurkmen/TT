@@ -3,7 +3,15 @@
 import { submitContactForm } from "@/app/actions/contact";
 import Script from "next/script";
 import { useLocale, useTranslations } from "next-intl";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+
+declare global {
+  interface Window {
+    onContactTurnstileSuccess?: () => void;
+    onContactTurnstileExpired?: () => void;
+    onContactTurnstileError?: () => void;
+  }
+}
 
 export function ContactForm({
   enabled,
@@ -18,7 +26,20 @@ export function ContactForm({
   const [info, setInfo] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
+  const [challengeReady, setChallengeReady] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    window.onContactTurnstileSuccess = () => setChallengeReady(true);
+    window.onContactTurnstileExpired = () => setChallengeReady(false);
+    window.onContactTurnstileError = () => setChallengeReady(false);
+
+    return () => {
+      delete window.onContactTurnstileSuccess;
+      delete window.onContactTurnstileExpired;
+      delete window.onContactTurnstileError;
+    };
+  }, []);
 
   if (!enabled) {
     return (
@@ -46,6 +67,7 @@ export function ContactForm({
             if (res.ok) {
               setInfo(t("contactSent"));
               formRef.current?.reset();
+              setChallengeReady(false);
               setTurnstileKey((k) => k + 1);
               return;
             }
@@ -97,16 +119,22 @@ export function ContactForm({
               className="cf-turnstile cf-turnstile-contact mx-auto w-fit max-w-full sm:mx-0"
               data-sitekey={turnstileSiteKey}
               data-size="flexible"
+              data-callback="onContactTurnstileSuccess"
+              data-expired-callback="onContactTurnstileExpired"
+              data-error-callback="onContactTurnstileError"
             />
           </div>
         ) : null}
         <button
           type="submit"
-          disabled={pending || !turnstileSiteKey}
+          disabled={pending || !turnstileSiteKey || !challengeReady}
           className="w-full min-h-11 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[#041016] disabled:opacity-50 sm:w-auto sm:min-w-[8rem]"
         >
           {t("contactSubmit")}
         </button>
+        {turnstileSiteKey && !challengeReady ? (
+          <p className="text-sm leading-relaxed text-[var(--muted)]">{t("contactWaitingChallenge")}</p>
+        ) : null}
         {info ? (
           <p className="text-sm leading-relaxed text-[var(--accent-2)]">{info}</p>
         ) : null}

@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build && opennextjs-cloudflare build --skipNextBuild",
-    "build:next": "next build",
+    "build": "next build --webpack && opennextjs-cloudflare build --skipNextBuild",
+    "build:next": "next build --webpack",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv",
-    "d1:migrate:local": "wrangler d1 execute tayfun-blog-db --local --file ./migrations/0001_auto_blog_runs.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0002_blog_posts.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0003_admin_users.sql",
-    "d1:migrate:remote": "wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0001_auto_blog_runs.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0002_blog_posts.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0003_admin_users.sql",
+    "d1:migrate:local": "wrangler d1 execute tayfun-blog-db --local --file ./migrations/0001_auto_blog_runs.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0002_blog_posts.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0003_admin_users.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0004_wordpress_like_cms.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0005_blog_post_media_fields.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0006_admin_2fa.sql",
+    "d1:migrate:remote": "wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0001_auto_blog_runs.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0002_blog_posts.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0003_admin_users.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0004_wordpress_like_cms.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0005_blog_post_media_fields.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0006_admin_2fa.sql",
     "start": "next start",
     "lint": "eslint"
   },
@@ -27,7 +27,8 @@
     "remark-gfm": "^4.0.1"
   },
   "overrides": {
-    "@swc/helpers": "0.5.21"
+    "@swc/helpers": "0.5.21",
+    "cloudflare": "3.2.0"
   },
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.19.1",

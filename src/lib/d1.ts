@@ -1,5 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 
 type D1Stmt = {
   bind: (...values: unknown[]) => {
@@ -21,6 +22,9 @@ export type DbPost = {
   excerpt: string;
   content: string;
   tags: string[];
+  category: string | null;
+  author: string | null;
+  featuredImage: string | null;
   published: boolean;
   scheduledFor: string | null;
   publishedAt: string | null;
@@ -34,12 +38,19 @@ type AdminUserRow = {
   username: string;
   password_hash: string;
   salt: string;
+  totp_secret: string | null;
+  totp_enabled: number | null;
 };
 
 type SiteSettingRow = {
   setting_key: string;
   setting_value: string;
 };
+
+const DEFAULT_ADSENSE_CLIENT = "ca-pub-2877579504931285";
+const scryptAsync = promisify(scrypt);
+let schemaReady = false;
+let schemaReadyPromise: Promise<boolean> | null = null;
 
 export type PublicSiteSettings = {
   adsenseClient: string | null;
@@ -63,6 +74,12 @@ export type AdminSecuritySettings = {
   turnstileSecretKey: string | null;
 };
 
+export type AdminTwoFactorStatus = {
+  enabled: boolean;
+  hasSecret: boolean;
+  username: string | null;
+};
+
 export type AdminAiSettings = {
   aiApiBaseUrl: string | null;
   aiApiKey: string | null;
@@ -70,6 +87,7 @@ export type AdminAiSettings = {
 };
 
 export type AdminSmtpSettings = {
+  brevoApiKey: string | null;
   smtpHost: string | null;
   smtpPort: string | null;
   smtpUser: string | null;
@@ -93,15 +111,28 @@ export type ContactMessage = {
 function getDb(): D1Like | null {
   try {
     const { env } = getCloudflareContext();
-    return (env as Record<string, unknown>).BLOG_DB as D1Like | null;
+    return (env as unknown as Record<string, unknown>).BLOG_DB as D1Like | null;
   } catch {
     return null;
   }
 }
 
-export async function ensureD1Schema() {
+async function ensureD1SchemaUncached() {
   const db = getDb();
   if (!db) return false;
+
+  try {
+    const row = await db
+      .prepare(
+        "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('auto_blog_runs', 'blog_posts', 'admin_users', 'site_settings', 'cron_runs', 'admin_login_attempts', 'contact_messages')",
+      )
+      .bind()
+      .first<{ count: number }>();
+    if (Number(row?.count ?? 0) >= 7) return true;
+  } catch {
+    // Fall through and try to bootstrap the schema.
+  }
+
   try {
     await db
       .prepare(
@@ -157,6 +188,11 @@ export async function ensureD1Schema() {
       "ALTER TABLE blog_posts ADD COLUMN published_at TEXT NULL",
       "ALTER TABLE blog_posts ADD COLUMN meta_title TEXT NULL",
       "ALTER TABLE blog_posts ADD COLUMN meta_description TEXT NULL",
+      "ALTER TABLE blog_posts ADD COLUMN category TEXT NULL",
+      "ALTER TABLE blog_posts ADD COLUMN author TEXT NULL",
+      "ALTER TABLE blog_posts ADD COLUMN featured_image TEXT NULL",
+      "ALTER TABLE admin_users ADD COLUMN totp_secret TEXT NULL",
+      "ALTER TABLE admin_users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0",
     ];
     for (const sql of alterStatements) {
       try {
@@ -170,6 +206,18 @@ export async function ensureD1Schema() {
   } catch {
     return false;
   }
+}
+
+export async function ensureD1Schema() {
+  if (schemaReady) return true;
+  if (schemaReadyPromise) return schemaReadyPromise;
+
+  schemaReadyPromise = ensureD1SchemaUncached().then((ok) => {
+    schemaReady = ok;
+    if (!ok) schemaReadyPromise = null;
+    return ok;
+  });
+  return schemaReadyPromise;
 }
 
 export async function logAutoBlogRun(topic: string, locale: string) {
@@ -213,6 +261,9 @@ type RawDbPost = {
   published_at: string | null;
   meta_title: string | null;
   meta_description: string | null;
+  category: string | null;
+  author: string | null;
+  featured_image: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -225,6 +276,9 @@ function mapDbPost(post: RawDbPost): DbPost {
     excerpt: post.excerpt,
     content: post.content,
     tags: JSON.parse(post.tags_json || "[]") as string[],
+    category: post.category,
+    author: post.author,
+    featuredImage: post.featured_image,
     published: Boolean(post.published),
     scheduledFor: post.scheduled_for,
     publishedAt: post.published_at,
@@ -246,6 +300,9 @@ export async function upsertBlogPost(input: {
   scheduledFor?: string | null;
   metaTitle?: string | null;
   metaDescription?: string | null;
+  category?: string | null;
+  author?: string | null;
+  featuredImage?: string | null;
 }) {
   const db = getDb();
   if (!db) return false;
@@ -254,8 +311,8 @@ export async function upsertBlogPost(input: {
     await db
       .prepare(
         `
-        INSERT INTO blog_posts (slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO blog_posts (slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, category, author, featured_image)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(slug, locale) DO UPDATE SET
           title = excluded.title,
           excerpt = excluded.excerpt,
@@ -266,6 +323,9 @@ export async function upsertBlogPost(input: {
           published_at = excluded.published_at,
           meta_title = excluded.meta_title,
           meta_description = excluded.meta_description,
+          category = excluded.category,
+          author = excluded.author,
+          featured_image = excluded.featured_image,
           updated_at = datetime('now')
       `,
       )
@@ -281,6 +341,9 @@ export async function upsertBlogPost(input: {
         input.published ? new Date().toISOString() : null,
         input.metaTitle ?? null,
         input.metaDescription ?? null,
+        input.category ?? null,
+        input.author ?? null,
+        input.featuredImage ?? null,
       )
       .run();
     return true;
@@ -296,7 +359,7 @@ export async function listPublishedBlogPosts(locale: string): Promise<DbPost[]> 
   try {
     const rows = await db
       .prepare(
-        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, created_at, updated_at FROM blog_posts WHERE locale = ? AND published = 1 ORDER BY COALESCE(published_at, updated_at) DESC",
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, category, author, featured_image, created_at, updated_at FROM blog_posts WHERE locale = ? AND published = 1 ORDER BY COALESCE(published_at, updated_at) DESC",
       )
       .bind(locale)
       .all<RawDbPost>();
@@ -306,8 +369,9 @@ export async function listPublishedBlogPosts(locale: string): Promise<DbPost[]> 
   }
 }
 
-function derivePasswordHash(password: string, saltHex: string): string {
-  return scryptSync(password, Buffer.from(saltHex, "hex"), 64).toString("hex");
+async function derivePasswordHash(password: string, saltHex: string): Promise<string> {
+  const derived = (await scryptAsync(password, Buffer.from(saltHex, "hex"), 64)) as Buffer;
+  return derived.toString("hex");
 }
 
 export async function hasAdminUser(): Promise<boolean> {
@@ -340,7 +404,7 @@ export async function registerInitialAdmin(
   if (exists) return "exists";
 
   const salt = randomBytes(16).toString("hex");
-  const passwordHash = derivePasswordHash(password, salt);
+  const passwordHash = await derivePasswordHash(password, salt);
   try {
     await db
       .prepare("INSERT INTO admin_users (username, password_hash, salt) VALUES (?, ?, ?)")
@@ -355,27 +419,106 @@ export async function registerInitialAdmin(
 export async function verifyAdminUser(
   username: string,
   password: string,
-): Promise<boolean> {
+): Promise<{ ok: boolean; username: string | null; twoFactorEnabled: boolean; totpSecret: string | null }> {
   const db = getDb();
-  if (!db) return false;
-  if (!(await ensureD1Schema())) return false;
+  if (!db) return { ok: false, username: null, twoFactorEnabled: false, totpSecret: null };
+  if (!(await ensureD1Schema())) return { ok: false, username: null, twoFactorEnabled: false, totpSecret: null };
 
   const cleanUsername = username.trim().toLowerCase();
   try {
     const row = await db
       .prepare(
-        "SELECT username, password_hash, salt FROM admin_users WHERE username = ? LIMIT 1",
+        "SELECT username, password_hash, salt, totp_secret, totp_enabled FROM admin_users WHERE username = ? LIMIT 1",
       )
       .bind(cleanUsername)
       .first<AdminUserRow>();
 
-    if (!row) return false;
+    if (!row) return { ok: false, username: null, twoFactorEnabled: false, totpSecret: null };
 
-    const candidate = derivePasswordHash(password, row.salt);
-    return timingSafeEqual(
+    const candidate = await derivePasswordHash(password, row.salt);
+    const ok = timingSafeEqual(
       Buffer.from(candidate, "hex"),
       Buffer.from(row.password_hash, "hex"),
     );
+    return {
+      ok,
+      username: ok ? row.username : null,
+      twoFactorEnabled: ok ? row.totp_enabled === 1 : false,
+      totpSecret: ok ? row.totp_secret : null,
+    };
+  } catch {
+    return { ok: false, username: null, twoFactorEnabled: false, totpSecret: null };
+  }
+}
+
+export async function getAdminTwoFactorStatus(): Promise<AdminTwoFactorStatus> {
+  const db = getDb();
+  if (!db) return { enabled: false, hasSecret: false, username: null };
+  if (!(await ensureD1Schema())) return { enabled: false, hasSecret: false, username: null };
+  try {
+    const row = await db
+      .prepare("SELECT username, totp_secret, totp_enabled FROM admin_users LIMIT 1")
+      .bind()
+      .first<{ username: string; totp_secret: string | null; totp_enabled: number | null }>();
+    return {
+      enabled: row?.totp_enabled === 1,
+      hasSecret: Boolean(row?.totp_secret),
+      username: row?.username ?? null,
+    };
+  } catch {
+    return { enabled: false, hasSecret: false, username: null };
+  }
+}
+
+export async function saveAdminTotpSecret(secret: string): Promise<string | null> {
+  const db = getDb();
+  if (!db) return null;
+  if (!(await ensureD1Schema())) return null;
+  try {
+    const row = await db
+      .prepare("SELECT username FROM admin_users LIMIT 1")
+      .bind()
+      .first<{ username: string }>();
+    if (!row?.username) return null;
+    await db
+      .prepare("UPDATE admin_users SET totp_secret = ?, totp_enabled = 0 WHERE username = ?")
+      .bind(secret, row.username)
+      .run();
+    return row.username;
+  } catch {
+    return null;
+  }
+}
+
+export async function getAdminTotpSecret(): Promise<string | null> {
+  const db = getDb();
+  if (!db) return null;
+  if (!(await ensureD1Schema())) return null;
+  try {
+    const row = await db
+      .prepare("SELECT totp_secret FROM admin_users LIMIT 1")
+      .bind()
+      .first<{ totp_secret: string | null }>();
+    return row?.totp_secret ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setAdminTwoFactorEnabled(enabled: boolean): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare(
+        enabled
+          ? "UPDATE admin_users SET totp_enabled = 1 WHERE totp_secret IS NOT NULL"
+          : "UPDATE admin_users SET totp_enabled = 0, totp_secret = NULL",
+      )
+      .bind()
+      .run();
+    return true;
   } catch {
     return false;
   }
@@ -391,7 +534,7 @@ export async function getPublishedBlogPost(
   try {
     const row = await db
       .prepare(
-        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, created_at, updated_at FROM blog_posts WHERE locale = ? AND slug = ? AND published = 1 LIMIT 1",
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, category, author, featured_image, created_at, updated_at FROM blog_posts WHERE locale = ? AND slug = ? AND published = 1 LIMIT 1",
       )
       .bind(locale, slug)
       .first<RawDbPost>();
@@ -408,7 +551,7 @@ export async function listAdminBlogPosts(limit = 100): Promise<DbPost[]> {
   try {
     const rows = await db
       .prepare(
-        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, created_at, updated_at FROM blog_posts ORDER BY updated_at DESC LIMIT ?",
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, category, author, featured_image, created_at, updated_at FROM blog_posts ORDER BY updated_at DESC LIMIT ?",
       )
       .bind(limit)
       .all<RawDbPost>();
@@ -428,7 +571,7 @@ export async function getAdminBlogPost(
   try {
     const row = await db
       .prepare(
-        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, created_at, updated_at FROM blog_posts WHERE locale = ? AND slug = ? LIMIT 1",
+        "SELECT slug, locale, title, excerpt, content, tags_json, published, scheduled_for, published_at, meta_title, meta_description, category, author, featured_image, created_at, updated_at FROM blog_posts WHERE locale = ? AND slug = ? LIMIT 1",
       )
       .bind(locale, slug)
       .first<RawDbPost>();
@@ -668,7 +811,7 @@ function parseSiteSettings(rows: SiteSettingRow[]): PublicSiteSettings {
   const envAds = normalizeNullable(process.env.NEXT_PUBLIC_ADSENSE_CLIENT);
   const envGa = normalizeNullable(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID);
   return {
-    adsenseClient: normalizeNullable(map.get("adsenseClient")) ?? envAds,
+    adsenseClient: normalizeNullable(map.get("adsenseClient")) ?? envAds ?? DEFAULT_ADSENSE_CLIENT,
     analyticsMeasurementId:
       normalizeNullable(map.get("analyticsMeasurementId")) ?? envGa,
     adSlotBlogList: normalizeNullable(map.get("adSlotBlogList")) ?? "1234567890",
@@ -851,6 +994,7 @@ export async function getAdminSmtpSettings(): Promise<AdminSmtpSettings> {
   const db = getDb();
   if (!db) {
     return {
+      brevoApiKey: null,
       smtpHost: null,
       smtpPort: "587",
       smtpUser: null,
@@ -862,6 +1006,7 @@ export async function getAdminSmtpSettings(): Promise<AdminSmtpSettings> {
   }
   if (!(await ensureD1Schema())) {
     return {
+      brevoApiKey: null,
       smtpHost: null,
       smtpPort: "587",
       smtpUser: null,
@@ -874,12 +1019,13 @@ export async function getAdminSmtpSettings(): Promise<AdminSmtpSettings> {
   try {
     const rows = await db
       .prepare(
-        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom', 'smtpSecure', 'contactNotifyEmail')",
+        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('brevoApiKey', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom', 'smtpSecure', 'contactNotifyEmail')",
       )
       .bind()
       .all<SiteSettingRow>();
     const map = new Map(rows.results.map((row) => [row.setting_key, row.setting_value]));
     return {
+      brevoApiKey: normalizeNullable(map.get("brevoApiKey")),
       smtpHost: normalizeNullable(map.get("smtpHost")),
       smtpPort: normalizeNullable(map.get("smtpPort")) ?? "587",
       smtpUser: normalizeNullable(map.get("smtpUser")),
@@ -890,6 +1036,7 @@ export async function getAdminSmtpSettings(): Promise<AdminSmtpSettings> {
     };
   } catch {
     return {
+      brevoApiKey: null,
       smtpHost: null,
       smtpPort: "587",
       smtpUser: null,
@@ -902,6 +1049,7 @@ export async function getAdminSmtpSettings(): Promise<AdminSmtpSettings> {
 }
 
 export async function saveAdminSmtpSettings(input: {
+  brevoApiKey?: string | null;
   smtpHost: string | null;
   smtpPort: string | null;
   smtpUser: string | null;
@@ -910,6 +1058,13 @@ export async function saveAdminSmtpSettings(input: {
   contactNotifyEmail: string | null;
   smtpPass?: string | null;
 }): Promise<boolean> {
+  if (input.brevoApiKey !== undefined) {
+    const brevoKey = normalizeNullable(input.brevoApiKey);
+    if (brevoKey) {
+      const brevoOk = await saveSiteSetting("brevoApiKey", brevoKey);
+      if (!brevoOk) return false;
+    }
+  }
   const hostOk = await saveSiteSetting("smtpHost", input.smtpHost);
   if (!hostOk) return false;
   const portOk = await saveSiteSetting("smtpPort", input.smtpPort || "587");

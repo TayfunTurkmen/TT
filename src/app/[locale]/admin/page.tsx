@@ -2,6 +2,7 @@ import { AdminPanel } from "@/components/AdminPanel";
 import {
   getAdminAiSettings,
   getAdminSmtpSettings,
+  getAdminTwoFactorStatus,
   getPublicSiteSettings,
   hasAdminUser,
   listAdminBlogPosts,
@@ -39,6 +40,9 @@ export default async function AdminPage({ params }: Props) {
   const marketing = enabled ? await getPublicSiteSettings() : null;
   const ai = enabled ? await getAdminAiSettings() : null;
   const smtp = unlocked && enabled ? await getAdminSmtpSettings() : null;
+  const twoFactor = unlocked && enabled
+    ? await getAdminTwoFactorStatus()
+    : { enabled: false, hasSecret: false, username: null };
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
@@ -60,6 +64,7 @@ export default async function AdminPage({ params }: Props) {
             tags: p.tags,
             published: p.published,
             updatedAt: p.updatedAt,
+            featuredImage: p.featuredImage,
             scheduledFor: p.scheduledFor,
           }))}
           initialCronRuns={cronRuns}
@@ -83,6 +88,7 @@ export default async function AdminPage({ params }: Props) {
             createdAt: m.createdAt,
           }))}
           initialSmtp={{
+            hasBrevoApiKey: Boolean(smtp?.brevoApiKey),
             smtpHost: smtp?.smtpHost ?? "",
             smtpPort: smtp?.smtpPort ?? "587",
             smtpUser: smtp?.smtpUser ?? "",
@@ -90,6 +96,10 @@ export default async function AdminPage({ params }: Props) {
             contactNotifyEmail: smtp?.contactNotifyEmail ?? "",
             smtpSecure: Boolean(smtp?.smtpSecure),
             hasSmtpPassword: Boolean(smtp?.smtpPass),
+          }}
+          initialTwoFactor={{
+            enabled: twoFactor.enabled,
+            hasSecret: twoFactor.hasSecret,
           }}
         />
       </div>

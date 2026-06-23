@@ -12,24 +12,29 @@
       "preview_database_id": "tt"
     }
   ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "tayfun"
+    }
+  ],
+  "vars": {
+    "R2_PUBLIC_BASE_URL": "https://cdn.tayfunturkmen.com",
+    "R2_S3_ENDPOINT": "https://30cb359e5106e91e4660cc3a6e0164fe.r2.cloudflarestorage.com/tayfun"
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
   // Workers Observability: keep explicit in git so preview/production deployments stay consistent (not dashboard-only).
   "observability": {
-    "enabled": false,
-    "head_sampling_rate": 1,
+    "enabled": true,
     "logs": {
       "enabled": true,
-      "head_sampling_rate": 1,
-      "persist": true,
       "invocation_logs": true
     },
     "traces": {
-      "enabled": false,
-      "persist": true,
-      "head_sampling_rate": 1
+      "enabled": false
     }
   }
 }

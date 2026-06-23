@@ -32,11 +32,11 @@ export function ThemeToggle({ lightLabel, darkLabel }: Props) {
     <button
       type="button"
       onClick={toggleTheme}
-      className="rounded-md border border-[var(--border)] bg-[var(--chip)] px-2 py-1.5 text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]"
+      className="rounded-md border border-[var(--border)] bg-[var(--chip)] px-2 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--text)]"
       aria-label={isDark ? lightLabel : darkLabel}
       title={isDark ? lightLabel : darkLabel}
     >
-      {isDark ? "☀ Light" : "🌙 Dark"}
+      {isDark ? "Light" : "Dark"}
     </button>
   );
 }

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Left top bar -->
+  <polygon points="5,15 75,15 70,20 10,20" fill="currentColor"/>
+  <!-- Right top purple piece -->
+  <polygon points="78,15 90,15 85,20 73,20" fill="#B39DDB"/>
+  
+  <!-- Left L-shape -->
+  <path d="M 45,25 L 15,25 L 17,30 L 40,30 Q 45,30 45,35 L 45,85 L 50,90 L 50,25 Z" fill="currentColor"/>
+  <!-- Wait, drawing polygons might be easier and more precise -->
+</svg>

@@ -3,8 +3,6 @@ import createNextIntlPlugin from "next-intl/plugin";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
-const isProd = process.env.NODE_ENV === "production";
-
 const csp = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -13,8 +11,8 @@ const csp = [
   "img-src 'self' data: https:",
   "font-src 'self' https://fonts.gstatic.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  `script-src 'self' https://pagead2.googlesyndication.com https://www.googletagmanager.com https://challenges.cloudflare.com${isProd ? "" : " 'unsafe-eval'"}`,
-  "connect-src 'self' https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://challenges.cloudflare.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://www.googletagmanager.com https://challenges.cloudflare.com https://static.cloudflareinsights.com",
+  "connect-src 'self' https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://cloudflareinsights.com",
   "frame-src https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://challenges.cloudflare.com",
   "upgrade-insecure-requests",
 ].join("; ");
@@ -38,6 +36,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   output: "standalone",
+  webpack: (config) => {
+    return config;
+  },
   async headers() {
     return [
       {

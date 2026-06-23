@@ -1,0 +1,2 @@
+ALTER TABLE admin_users ADD COLUMN totp_secret TEXT NULL;
+ALTER TABLE admin_users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;

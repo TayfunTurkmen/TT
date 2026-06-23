@@ -1,6 +1,9 @@
 import { getRequestConfig } from "next-intl/server";
 import { routing } from "./routing";
 
+import enMessages from "../../messages/en.json";
+import trMessages from "../../messages/tr.json";
+
 export default getRequestConfig(async ({ requestLocale }) => {
   let locale = await requestLocale;
   if (!locale || !routing.locales.includes(locale as "en" | "tr")) {
@@ -9,6 +12,6 @@ export default getRequestConfig(async ({ requestLocale }) => {
 
   return {
     locale,
-    messages: (await import(`../../messages/${locale}.json`)).default,
+    messages: locale === "tr" ? trMessages : enMessages,
   };
 });

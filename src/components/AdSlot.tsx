@@ -30,21 +30,25 @@ export function AdSlot({
 
   if (!client) {
     return (
-      <div
-        className={`rounded-xl border border-dashed border-[var(--border)] bg-[var(--chip)] p-4 text-center text-xs text-[var(--muted)] ${className}`}
-      >
-        Ad placeholder
+      <div className={className}>
+        <span className="ad-label">Advertisement</span>
+        <div className="min-h-28 rounded-lg border border-dashed border-[var(--border)] bg-[var(--chip)] p-4 text-center text-xs text-[var(--muted)]">
+          Ad placeholder
+        </div>
       </div>
     );
   }
 
   return (
-    <ins
-      className={`adsbygoogle block rounded-xl border border-[var(--border)] bg-[var(--chip)] ${className}`}
-      data-ad-client={client}
-      data-ad-slot={slot}
-      data-ad-format={format}
-      data-full-width-responsive="true"
-    />
+    <div className={className}>
+      <span className="ad-label">Advertisement</span>
+      <ins
+        className="adsbygoogle block min-h-28 rounded-lg border border-[var(--border)] bg-[var(--chip)]"
+        data-ad-client={client}
+        data-ad-slot={slot}
+        data-ad-format={format}
+        data-full-width-responsive="true"
+      />
+    </div>
   );
 }

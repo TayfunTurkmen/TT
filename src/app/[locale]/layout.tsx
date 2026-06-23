@@ -1,6 +1,7 @@
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { LangSetter } from "@/components/LangSetter";
+import { CookieConsent } from "@/components/CookieConsent";
 import { routing } from "@/i18n/routing";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
@@ -27,12 +28,11 @@ export default async function LocaleLayout({ children, params }: Props) {
   return (
     <NextIntlClientProvider messages={messages}>
       <LangSetter locale={locale} />
-      <div className="noise-layer" aria-hidden />
-      <div className="grid-bg" aria-hidden />
-      <div className="relative z-10 flex min-h-screen flex-col">
+      <div className="relative z-10 flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)] selection:bg-[var(--accent)] selection:text-white">
         <SiteHeader locale={locale} />
         <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
         <SiteFooter locale={locale} />
+        <CookieConsent locale={locale} />
       </div>
     </NextIntlClientProvider>
   );

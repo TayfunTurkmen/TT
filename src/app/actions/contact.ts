@@ -5,7 +5,7 @@ import {
   getAdminSmtpSettings,
   insertContactMessage,
 } from "@/lib/d1";
-import { sendContactNotificationEmail } from "@/lib/smtp-send";
+import { hasContactNotificationTransport, sendContactNotificationEmail } from "@/lib/smtp-send";
 import { verifyTurnstileResponse } from "@/lib/turnstile";
 import { headers } from "next/headers";
 
@@ -58,15 +58,20 @@ export async function submitContactForm(formData: FormData): Promise<ContactForm
 
   const smtp = await getAdminSmtpSettings();
   const notify = smtp.contactNotifyEmail?.trim();
-  if (notify && smtp.smtpHost && smtp.smtpUser && smtp.smtpPass && smtp.smtpFrom) {
+  if (notify && hasContactNotificationTransport(smtp)) {
     try {
       await sendContactNotificationEmail({
         smtp,
         to: notify,
         subject: `[tayfunturkmen.com] ${name}`,
         text: `From: ${name} <${email}>\nLocale: ${locale}\nIP: ${ip}\n\n---\n\n${body}\n`,
+        replyTo: { email, name },
       });
-    } catch {
+    } catch (error) {
+      console.warn(
+        "Contact notification email failed",
+        error instanceof Error ? error.message : "unknown",
+      );
       // Message is stored; email delivery may fail in some serverless environments.
     }
   }

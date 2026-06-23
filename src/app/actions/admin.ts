@@ -2,6 +2,7 @@
 
 import { generateDraft, translateDraft, type GeneratedDraft, type LocaleCode } from "@/lib/auto-blog";
 import { buildWebDualDrafts } from "@/lib/auto-blog-web";
+import { syncDemoSitePostsToAdminDb } from "@/lib/site-post-sync";
 import { extractKeywords } from "@/lib/web-fetch";
 import {
   autoPublishScheduledPosts,
@@ -11,6 +12,8 @@ import {
   deleteContactMessage,
   getAdminBlogPost,
   getAdminSecuritySettings,
+  getAdminTotpSecret,
+  getAdminTwoFactorStatus,
   isAdminLoginBlocked,
   logCronRun,
   publishBlogPostsBySlug,
@@ -18,11 +21,14 @@ import {
   registerInitialAdmin,
   saveAdminAiSettings,
   saveAdminSmtpSettings,
+  saveAdminTotpSecret,
   savePublicSiteSettings,
   saveTurnstileSecret,
+  setAdminTwoFactorEnabled,
   upsertBlogPost,
   verifyAdminUser,
 } from "@/lib/d1";
+import { buildTotpUri, generateTotpSecret, verifyTotpCode } from "@/lib/totp";
 import { verifyTurnstileResponse } from "@/lib/turnstile";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -41,9 +47,14 @@ export type AdminResult =
         | "publishedNow"
         | "deleted"
         | "cronRun"
-        | "bulkDeleted";
+        | "bulkDeleted"
+        | "synced";
     }
-  | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" };
+  | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" | "twoFactor" };
+
+export type AdminTwoFactorSetupResult =
+  | { ok: true; manualKey: string; otpauthUri: string }
+  | { ok: false; error: "locked" | "db" };
 
 function getClientIpFromHeaders(
   h: Headers,
@@ -62,28 +73,33 @@ async function verifyTurnstileIfEnabled(formData: FormData, ip: string): Promise
   return verifyTurnstileResponse(settings.turnstileSecretKey, token, ip);
 }
 
-export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
-  const h = await headers();
-  const ip = getClientIpFromHeaders(h);
-  const username = String(formData.get("username") ?? "").trim().toLowerCase();
-  const password = String(formData.get("password") ?? "");
-  if (!username || !password) return { ok: false, error: "invalid" };
-  const attemptKey = `${username}|${ip}`;
-  const blockedSeconds = await isAdminLoginBlocked(attemptKey);
-  if (blockedSeconds > 0) return { ok: false, error: "auth" };
+function isLikelyBotSubmission(formData: FormData): boolean {
+  const honeypot = String(formData.get("website") ?? "").trim();
+  const renderedAt = Number(String(formData.get("formRenderedAt") ?? "0"));
+  const tooFast = Number.isFinite(renderedAt) && renderedAt > 0 && Date.now() - renderedAt < 900;
+  return Boolean(honeypot) || tooFast;
+}
 
-  const turnstileOk = await verifyTurnstileIfEnabled(formData, ip);
-  if (!turnstileOk) {
-    await registerAdminLoginFailure(attemptKey);
-    return { ok: false, error: "auth" };
-  }
-  const ok = await verifyAdminUser(username, password);
-  if (!ok) {
-    await registerAdminLoginFailure(attemptKey);
-    return { ok: false, error: "auth" };
-  }
-  await clearAdminLoginFailures(attemptKey);
+async function getLoginAttemptKeys(username: string, ip: string): Promise<string[]> {
+  return [`ip:${ip}`, `user:${username}|ip:${ip}`];
+}
 
+async function isAnyLoginKeyBlocked(keys: string[]): Promise<boolean> {
+  for (const key of keys) {
+    if ((await isAdminLoginBlocked(key)) > 0) return true;
+  }
+  return false;
+}
+
+async function registerLoginFailure(keys: string[]) {
+  for (const key of keys) await registerAdminLoginFailure(key);
+}
+
+async function clearLoginFailures(keys: string[]) {
+  for (const key of keys) await clearAdminLoginFailures(key);
+}
+
+async function setAdminSessionCookie() {
   const jar = await cookies();
   jar.set(COOKIE, "1", {
     httpOnly: true,
@@ -92,11 +108,57 @@ export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
     path: "/",
     maxAge: 60 * 60 * 8,
   });
+}
+
+export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
+  const h = await headers();
+  const ip = getClientIpFromHeaders(h);
+  const username = String(formData.get("username") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const twoFactorCode = String(formData.get("totp") ?? "").trim();
+  if (!username || !password) return { ok: false, error: "invalid" };
+  const attemptKeys = await getLoginAttemptKeys(username, ip);
+  if (await isAnyLoginKeyBlocked(attemptKeys)) return { ok: false, error: "auth" };
+  if (isLikelyBotSubmission(formData)) {
+    await registerLoginFailure(attemptKeys);
+    return { ok: false, error: "auth" };
+  }
+
+  const turnstileOk = await verifyTurnstileIfEnabled(formData, ip);
+  if (!turnstileOk) {
+    await registerLoginFailure(attemptKeys);
+    return { ok: false, error: "auth" };
+  }
+  const login = await verifyAdminUser(username, password);
+  if (!login.ok) {
+    await registerLoginFailure(attemptKeys);
+    return { ok: false, error: "auth" };
+  }
+  if (login.twoFactorEnabled && !verifyTotpCode(login.totpSecret, twoFactorCode)) {
+    await registerLoginFailure(attemptKeys);
+    return { ok: false, error: "twoFactor" };
+  }
+  await clearLoginFailures(attemptKeys);
+  await setAdminSessionCookie();
 
   return { ok: true, message: "unlocked" };
 }
 
 export async function setupInitialAdmin(formData: FormData): Promise<AdminResult> {
+  const h = await headers();
+  const ip = getClientIpFromHeaders(h);
+  const attemptKeys = [`setup:${ip}`];
+  if (await isAnyLoginKeyBlocked(attemptKeys)) return { ok: false, error: "auth" };
+  if (isLikelyBotSubmission(formData)) {
+    await registerLoginFailure(attemptKeys);
+    return { ok: false, error: "auth" };
+  }
+  const turnstileOk = await verifyTurnstileIfEnabled(formData, ip);
+  if (!turnstileOk) {
+    await registerLoginFailure(attemptKeys);
+    return { ok: false, error: "auth" };
+  }
+
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
   const result = await registerInitialAdmin(username, password);
@@ -105,16 +167,49 @@ export async function setupInitialAdmin(formData: FormData): Promise<AdminResult
   if (result === "invalid") return { ok: false, error: "invalid" };
   if (result === "exists") return { ok: false, error: "exists" };
 
-  const jar = await cookies();
-  jar.set(COOKIE, "1", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/",
-    maxAge: 60 * 60 * 8,
-  });
+  await clearLoginFailures(attemptKeys);
+  await setAdminSessionCookie();
 
   return { ok: true, message: "registered" };
+}
+
+export async function createAdminTwoFactorSetup(): Promise<AdminTwoFactorSetupResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  const secret = generateTotpSecret();
+  const username = await saveAdminTotpSecret(secret);
+  if (!username) return { ok: false, error: "db" };
+  return {
+    ok: true,
+    manualKey: secret,
+    otpauthUri: buildTotpUri({ secret, username }),
+  };
+}
+
+export async function enableAdminTwoFactor(formData: FormData): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  const code = String(formData.get("totp") ?? "").trim();
+  const secret = await getAdminTotpSecret();
+  if (!verifyTotpCode(secret, code)) return { ok: false, error: "twoFactor" };
+  const ok = await setAdminTwoFactorEnabled(true);
+  if (!ok) return { ok: false, error: "db" };
+  return { ok: true, message: "settingsSaved" };
+}
+
+export async function disableAdminTwoFactor(formData: FormData): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  const status = await getAdminTwoFactorStatus();
+  const secret = await getAdminTotpSecret();
+  const code = String(formData.get("totp") ?? "").trim();
+  if (status.enabled && !verifyTotpCode(secret, code)) return { ok: false, error: "twoFactor" };
+  const ok = await setAdminTwoFactorEnabled(false);
+  if (!ok) return { ok: false, error: "db" };
+  return { ok: true, message: "settingsSaved" };
 }
 
 function toSlug(value: string) {
@@ -325,6 +420,9 @@ export async function updateAdminPost(formData: FormData): Promise<AdminResult> 
     scheduledFor: scheduleDate ? `${scheduleDate}T09:00:00Z` : null,
     metaTitle: title,
     metaDescription: effectiveExcerpt,
+    category: existing.category,
+    author: existing.author,
+    featuredImage: existing.featuredImage,
   });
   if (!ok) return { ok: false, error: "db" };
 
@@ -352,6 +450,9 @@ export async function updateAdminPost(formData: FormData): Promise<AdminResult> 
     scheduledFor: scheduleDate ? `${scheduleDate}T09:00:00Z` : null,
     metaTitle: translated.seoTitle,
     metaDescription: translated.seoDescription,
+    category: existing.category,
+    author: existing.author,
+    featuredImage: existing.featuredImage,
   });
   if (!otherOk) return { ok: false, error: "db" };
 
@@ -470,6 +571,7 @@ export async function saveSmtpSettings(formData: FormData): Promise<AdminResult>
   const jar = await cookies();
   if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
 
+  const brevoApiKeyRaw = String(formData.get("brevoApiKey") ?? "").trim();
   const smtpHost = String(formData.get("smtpHost") ?? "").trim() || null;
   const smtpPort = String(formData.get("smtpPort") ?? "587").trim() || "587";
   const smtpUser = String(formData.get("smtpUser") ?? "").trim() || null;
@@ -479,6 +581,7 @@ export async function saveSmtpSettings(formData: FormData): Promise<AdminResult>
   const smtpPassRaw = String(formData.get("smtpPass") ?? "").trim();
 
   const ok = await saveAdminSmtpSettings({
+    brevoApiKey: brevoApiKeyRaw ? brevoApiKeyRaw : undefined,
     smtpHost,
     smtpPort,
     smtpUser,
@@ -608,6 +711,21 @@ export async function runCronNow(): Promise<AdminResult> {
       publishedCount: 0,
       error: message,
     });
+    return { ok: false, error: "db" };
+  }
+}
+
+export async function syncSitePostsToAdmin(): Promise<AdminResult> {
+  const jar = await cookies();
+  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+
+  try {
+    const ok = await syncDemoSitePostsToAdminDb();
+    if (!ok) return { ok: false, error: "db" };
+    revalidatePath("/[locale]/admin", "page");
+    revalidatePath("/[locale]/blog", "page");
+    return { ok: true, message: "synced" };
+  } catch {
     return { ok: false, error: "db" };
   }
 }

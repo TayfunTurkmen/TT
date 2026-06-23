@@ -37,7 +37,7 @@ function stubMarkdown({ topic, locale }: GenerateInput, slug: string) {
       ? [
           `## ${topic}`,
           "",
-          "_Yerel AI modu: API key olmadan hızlı taslak üretimi._",
+          "_Yerel yapay zekâ modu: API anahtarı olmadan hızlı taslak üretimi._",
           "",
           "### Özet",
           `${topic} konusunda pratik, uygulanabilir ve güvenlik odaklı bir yaklaşım öneriyoruz. Bu taslak doğrudan yayın yerine editör gözünden geçirilmelidir.`,
@@ -99,7 +99,7 @@ function toExcerpt(content: string, locale: string): string {
   const sliced = plain.slice(0, 160);
   if (!sliced) {
     return locale === "tr"
-      ? "AI destekli taslak - gözden geçirip yayınlayın."
+      ? "Yapay zekâ destekli taslak - gözden geçirip yayınlayın."
       : "AI-assisted draft - review before publishing.";
   }
   return sliced;

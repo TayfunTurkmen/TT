@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Top Bar -->
+  <polygon points="6,15 80,15 75,22 13,22" fill="currentColor"/>
+  <!-- Top Purple Piece -->
+  <polygon points="84,15 97,15 92,22 79,22" fill="#B39DDB"/>
+  
+  <!-- Left L-shape -->
+  <path d="M 15,30 L 42,30 Q 46,30 46,34 L 46,85 L 39,92 L 39,37 L 15,37 Z" fill="currentColor"/>
+  <!-- Right L-shape -->
+  <path d="M 85,30 L 58,30 Q 54,30 54,34 L 54,85 L 61,92 L 61,37 L 85,37 Z" fill="currentColor"/>
+</svg>
