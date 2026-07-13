@@ -5,6 +5,7 @@ import {
   createAdminTwoFactorSetup,
   deleteAdminPostGroup,
   deleteContactMessageAdmin,
+  deleteConsultingBookingAdmin,
   disableAdminTwoFactor,
   enableAdminTwoFactor,
   generateEditorDraft,
@@ -12,6 +13,7 @@ import {
   publishAdminPost,
   runCronNow,
   saveMarketingSettings,
+  saveConsultingSettings,
   saveAdminPost,
   saveSmtpSettings,
   setupInitialAdmin,
@@ -56,6 +58,22 @@ type ContactInboxEntry = {
   createdAt: string;
 };
 
+type ConsultingBookingEntry = {
+  id: number;
+  name: string;
+  email: string;
+  package: "30" | "60";
+  preferredDate: string;
+  preferredTime: string;
+  topic: string;
+  locale: string;
+  status: "pending" | "paid" | "cancelled";
+  amountCents: number;
+  currency: string;
+  createdAt: string;
+  paidAt: string | null;
+};
+
 type EditorBlock = {
   id: string;
   type: "heading" | "paragraph" | "list" | "quote" | "code";
@@ -80,6 +98,8 @@ export function AdminPanel({
   initialCronRuns,
   initialSettings,
   initialContactMessages,
+  initialConsulting,
+  initialConsultingBookings,
   initialSmtp,
   initialTwoFactor,
 }: {
@@ -99,6 +119,15 @@ export function AdminPanel({
     hasAiApiKey: boolean;
   };
   initialContactMessages: ContactInboxEntry[];
+  initialConsulting: {
+    consultingPrice30: number;
+    consultingPrice60: number;
+    consultingCurrency: string;
+    consultingEnabled: boolean;
+    hasStripeSecretKey: boolean;
+    hasStripeWebhookSecret: boolean;
+  };
+  initialConsultingBookings: ConsultingBookingEntry[];
   initialSmtp: {
     hasBrevoApiKey: boolean;
     smtpHost: string;
@@ -130,7 +159,7 @@ export function AdminPanel({
   const [editorScheduleDate, setEditorScheduleDate] = useState("");
   const [editingTarget, setEditingTarget] = useState<{ locale: string; slug: string } | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "editor" | "posts" | "automation" | "contact" | "settings"
+    "editor" | "posts" | "automation" | "contact" | "consulting" | "settings"
   >("editor");
   const [formRenderedAt] = useState(() => String(Date.now()));
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(initialTwoFactor.enabled);
@@ -440,13 +469,14 @@ export function AdminPanel({
                 ["posts", t("tabPosts")],
                 ["automation", t("tabAutomation")],
                 ["contact", t("tabContact")],
+                ["consulting", t("tabConsulting")],
                 ["settings", t("tabSettings")],
               ].map(([id, label]) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() =>
-                    setActiveTab(id as "editor" | "posts" | "automation" | "contact" | "settings")
+                    setActiveTab(id as "editor" | "posts" | "automation" | "contact" | "consulting" | "settings")
                   }
                   className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${
                     activeTab === id
@@ -884,6 +914,176 @@ export function AdminPanel({
                       <p className="mt-2 whitespace-pre-wrap break-words text-[var(--muted)]">
                         {m.body}
                       </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+
+          <div className={`space-y-6 ${activeTab === "consulting" ? "" : "hidden"}`}>
+            <form
+              className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-4 sm:p-6"
+              action={(fd) => {
+                setMessage(null);
+                start(async () => {
+                  const res = await saveConsultingSettings(fd);
+                  setMessage(res.ok ? t("settingsSaved") : t("error"));
+                  if (res.ok) router.refresh();
+                });
+              }}
+            >
+              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+                {t("consultingTitle")}
+              </h2>
+              <p className="mt-2 text-sm text-[var(--muted)]">{t("consultingLead")}</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="flex items-center gap-2 text-sm text-[var(--muted)] sm:col-span-2">
+                  <input
+                    name="consultingEnabled"
+                    type="checkbox"
+                    value="on"
+                    defaultChecked={initialConsulting.consultingEnabled}
+                    className="rounded border-[var(--border)]"
+                  />
+                  {t("consultingEnabled")}
+                </label>
+                <label className="text-sm text-[var(--muted)]">
+                  {t("consultingPrice30")}
+                  <input
+                    name="consultingPrice30"
+                    type="number"
+                    min={100}
+                    step={100}
+                    required
+                    defaultValue={initialConsulting.consultingPrice30}
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="text-sm text-[var(--muted)]">
+                  {t("consultingPrice60")}
+                  <input
+                    name="consultingPrice60"
+                    type="number"
+                    min={100}
+                    step={100}
+                    required
+                    defaultValue={initialConsulting.consultingPrice60}
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="text-sm text-[var(--muted)]">
+                  {t("consultingCurrency")}
+                  <input
+                    name="consultingCurrency"
+                    defaultValue={initialConsulting.consultingCurrency}
+                    placeholder="usd"
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="text-sm text-[var(--muted)] sm:col-span-2">
+                  {t("stripeSecretKey")}
+                  <input
+                    name="stripeSecretKey"
+                    type="password"
+                    placeholder={
+                      initialConsulting.hasStripeSecretKey
+                        ? t("stripeSecretKeyHintSet")
+                        : t("stripeSecretKeyHintEmpty")
+                    }
+                    autoComplete="new-password"
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+                <label className="text-sm text-[var(--muted)] sm:col-span-2">
+                  {t("stripeWebhookSecret")}
+                  <input
+                    name="stripeWebhookSecret"
+                    type="password"
+                    placeholder={
+                      initialConsulting.hasStripeWebhookSecret
+                        ? t("stripeWebhookSecretHintSet")
+                        : t("stripeWebhookSecretHintEmpty")
+                    }
+                    autoComplete="new-password"
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
+                  />
+                </label>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-[var(--muted)]">{t("consultingWebhookHint")}</p>
+              <button
+                type="submit"
+                disabled={pending}
+                className="mt-4 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {t("saveConsulting")}
+              </button>
+            </form>
+
+            <section className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-4 sm:p-6">
+              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+                {t("consultingBookingsTitle")}
+              </h2>
+              <p className="mt-2 text-sm text-[var(--muted)]">{t("consultingBookingsLead")}</p>
+              {initialConsultingBookings.length === 0 ? (
+                <p className="mt-4 text-sm text-[var(--muted)]">{t("consultingBookingsEmpty")}</p>
+              ) : (
+                <ul className="mt-4 space-y-3 text-sm">
+                  {initialConsultingBookings.map((b) => (
+                    <li
+                      key={b.id}
+                      className="min-w-0 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="break-words font-medium text-[var(--text)]">
+                            {b.name} ·{" "}
+                            <a className="break-all text-[var(--accent)]" href={`mailto:${b.email}`}>
+                              {b.email}
+                            </a>
+                          </p>
+                          <p className="break-words text-xs text-[var(--muted)]">
+                            {b.createdAt}
+                            {b.paidAt ? ` · paid ${b.paidAt}` : ""} · {b.locale.toUpperCase()} ·{" "}
+                            {b.package} min · {(b.amountCents / 100).toFixed(2)} {b.currency.toUpperCase()}
+                          </p>
+                          <p className="mt-1 text-xs text-[var(--muted)]">
+                            {b.preferredDate} {b.preferredTime} ·{" "}
+                            <span
+                              className={
+                                b.status === "paid"
+                                  ? "text-[var(--accent-2)]"
+                                  : b.status === "pending"
+                                    ? "text-[var(--muted)]"
+                                    : "text-[#ff9a9a]"
+                              }
+                            >
+                              {b.status}
+                            </span>
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => {
+                            if (!window.confirm(t("consultingDeleteConfirm"))) return;
+                            setMessage(null);
+                            start(async () => {
+                              const res = await deleteConsultingBookingAdmin(b.id);
+                              setMessage(res.ok ? t("deleted") : t("error"));
+                              if (res.ok) router.refresh();
+                            });
+                          }}
+                          className="shrink-0 rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-2 py-1 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
+                        >
+                          {t("delete")}
+                        </button>
+                      </div>
+                      {b.topic ? (
+                        <p className="mt-2 whitespace-pre-wrap break-words text-[var(--muted)]">
+                          {b.topic}
+                        </p>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

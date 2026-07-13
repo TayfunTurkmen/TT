@@ -108,6 +108,42 @@ export type ContactMessage = {
   createdAt: string;
 };
 
+export type ConsultingBooking = {
+  id: number;
+  publicId: string;
+  name: string;
+  email: string;
+  package: "30" | "60";
+  preferredDate: string;
+  preferredTime: string;
+  topic: string;
+  locale: string;
+  status: "pending" | "paid" | "cancelled";
+  stripeSessionId: string | null;
+  amountCents: number;
+  currency: string;
+  ip: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  paidAt: string | null;
+};
+
+export type AdminConsultingSettings = {
+  stripeSecretKey: string | null;
+  stripeWebhookSecret: string | null;
+  consultingPrice30: number;
+  consultingPrice60: number;
+  consultingCurrency: string;
+  consultingEnabled: boolean;
+};
+
+export type PublicConsultingSettings = {
+  enabled: boolean;
+  price30: number;
+  price60: number;
+  currency: string;
+};
+
 function getDb(): D1Like | null {
   try {
     const { env } = getCloudflareContext();
@@ -124,11 +160,11 @@ async function ensureD1SchemaUncached() {
   try {
     const row = await db
       .prepare(
-        "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('auto_blog_runs', 'blog_posts', 'admin_users', 'site_settings', 'cron_runs', 'admin_login_attempts', 'contact_messages')",
+        "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('auto_blog_runs', 'blog_posts', 'admin_users', 'site_settings', 'cron_runs', 'admin_login_attempts', 'contact_messages', 'consulting_bookings')",
       )
       .bind()
       .first<{ count: number }>();
-    if (Number(row?.count ?? 0) >= 7) return true;
+    if (Number(row?.count ?? 0) >= 8) return true;
   } catch {
     // Fall through and try to bootstrap the schema.
   }
@@ -182,6 +218,30 @@ async function ensureD1SchemaUncached() {
       )
       .bind()
       .run();
+
+    await db
+      .prepare(
+        "CREATE TABLE IF NOT EXISTS consulting_bookings (id INTEGER PRIMARY KEY AUTOINCREMENT, public_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, email TEXT NOT NULL, package TEXT NOT NULL CHECK (package IN ('30', '60')), preferred_date TEXT NOT NULL, preferred_time TEXT NOT NULL, topic TEXT NOT NULL DEFAULT '', locale TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'cancelled')), stripe_session_id TEXT NULL, amount_cents INTEGER NOT NULL, currency TEXT NOT NULL DEFAULT 'usd', ip TEXT NULL, user_agent TEXT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), paid_at TEXT NULL)",
+      )
+      .bind()
+      .run();
+
+    try {
+      await db
+        .prepare(
+          "CREATE INDEX IF NOT EXISTS idx_consulting_bookings_status ON consulting_bookings(status)",
+        )
+        .bind()
+        .run();
+      await db
+        .prepare(
+          "CREATE INDEX IF NOT EXISTS idx_consulting_bookings_stripe_session ON consulting_bookings(stripe_session_id)",
+        )
+        .bind()
+        .run();
+    } catch {
+      // Index creation is best-effort during bootstrap.
+    }
 
     const alterStatements = [
       "ALTER TABLE blog_posts ADD COLUMN scheduled_for TEXT NULL",
@@ -1165,6 +1225,283 @@ export async function deleteContactMessage(id: number): Promise<boolean> {
   if (!(await ensureD1Schema())) return false;
   try {
     await db.prepare("DELETE FROM contact_messages WHERE id = ?").bind(id).run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const DEFAULT_CONSULTING_PRICE_30 = 7500;
+const DEFAULT_CONSULTING_PRICE_60 = 12000;
+const DEFAULT_CONSULTING_CURRENCY = "usd";
+
+function parseConsultingPrice(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 100) return fallback;
+  return Math.round(parsed);
+}
+
+export async function getAdminConsultingSettings(): Promise<AdminConsultingSettings> {
+  const db = getDb();
+  if (!db) {
+    return {
+      stripeSecretKey: null,
+      stripeWebhookSecret: null,
+      consultingPrice30: DEFAULT_CONSULTING_PRICE_30,
+      consultingPrice60: DEFAULT_CONSULTING_PRICE_60,
+      consultingCurrency: DEFAULT_CONSULTING_CURRENCY,
+      consultingEnabled: false,
+    };
+  }
+  if (!(await ensureD1Schema())) {
+    return {
+      stripeSecretKey: null,
+      stripeWebhookSecret: null,
+      consultingPrice30: DEFAULT_CONSULTING_PRICE_30,
+      consultingPrice60: DEFAULT_CONSULTING_PRICE_60,
+      consultingCurrency: DEFAULT_CONSULTING_CURRENCY,
+      consultingEnabled: false,
+    };
+  }
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('stripeSecretKey', 'stripeWebhookSecret', 'consultingPrice30', 'consultingPrice60', 'consultingCurrency', 'consultingEnabled')",
+      )
+      .bind()
+      .all<SiteSettingRow>();
+    const map = new Map(rows.results.map((row) => [row.setting_key, row.setting_value]));
+    const currency = normalizeNullable(map.get("consultingCurrency"))?.toLowerCase() ?? DEFAULT_CONSULTING_CURRENCY;
+    return {
+      stripeSecretKey: normalizeNullable(map.get("stripeSecretKey")),
+      stripeWebhookSecret: normalizeNullable(map.get("stripeWebhookSecret")),
+      consultingPrice30: parseConsultingPrice(map.get("consultingPrice30"), DEFAULT_CONSULTING_PRICE_30),
+      consultingPrice60: parseConsultingPrice(map.get("consultingPrice60"), DEFAULT_CONSULTING_PRICE_60),
+      consultingCurrency: currency,
+      consultingEnabled: map.get("consultingEnabled") === "1",
+    };
+  } catch {
+    return {
+      stripeSecretKey: null,
+      stripeWebhookSecret: null,
+      consultingPrice30: DEFAULT_CONSULTING_PRICE_30,
+      consultingPrice60: DEFAULT_CONSULTING_PRICE_60,
+      consultingCurrency: DEFAULT_CONSULTING_CURRENCY,
+      consultingEnabled: false,
+    };
+  }
+}
+
+export async function getPublicConsultingSettings(): Promise<PublicConsultingSettings> {
+  const settings = await getAdminConsultingSettings();
+  return {
+    enabled: settings.consultingEnabled && Boolean(settings.stripeSecretKey),
+    price30: settings.consultingPrice30,
+    price60: settings.consultingPrice60,
+    currency: settings.consultingCurrency,
+  };
+}
+
+export async function saveAdminConsultingSettings(input: {
+  consultingPrice30: number;
+  consultingPrice60: number;
+  consultingCurrency: string;
+  consultingEnabled: boolean;
+  stripeSecretKey?: string | null;
+  stripeWebhookSecret?: string | null;
+}): Promise<boolean> {
+  const price30Ok = await saveSiteSetting("consultingPrice30", String(Math.max(100, Math.round(input.consultingPrice30))));
+  if (!price30Ok) return false;
+  const price60Ok = await saveSiteSetting("consultingPrice60", String(Math.max(100, Math.round(input.consultingPrice60))));
+  if (!price60Ok) return false;
+  const currency = input.consultingCurrency.trim().toLowerCase();
+  const currencyOk = await saveSiteSetting("consultingCurrency", currency || DEFAULT_CONSULTING_CURRENCY);
+  if (!currencyOk) return false;
+  const enabledOk = await saveSiteSetting("consultingEnabled", input.consultingEnabled ? "1" : "0");
+  if (!enabledOk) return false;
+  if (input.stripeSecretKey !== undefined) {
+    const keyOk = await saveSiteSetting("stripeSecretKey", input.stripeSecretKey);
+    if (!keyOk) return false;
+  }
+  if (input.stripeWebhookSecret !== undefined) {
+    const webhookOk = await saveSiteSetting("stripeWebhookSecret", input.stripeWebhookSecret);
+    if (!webhookOk) return false;
+  }
+  return true;
+}
+
+type RawConsultingBooking = {
+  id: number;
+  public_id: string;
+  name: string;
+  email: string;
+  package: "30" | "60";
+  preferred_date: string;
+  preferred_time: string;
+  topic: string;
+  locale: string;
+  status: "pending" | "paid" | "cancelled";
+  stripe_session_id: string | null;
+  amount_cents: number;
+  currency: string;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
+  paid_at: string | null;
+};
+
+function mapConsultingBooking(row: RawConsultingBooking): ConsultingBooking {
+  return {
+    id: row.id,
+    publicId: row.public_id,
+    name: row.name,
+    email: row.email,
+    package: row.package,
+    preferredDate: row.preferred_date,
+    preferredTime: row.preferred_time,
+    topic: row.topic,
+    locale: row.locale,
+    status: row.status,
+    stripeSessionId: row.stripe_session_id,
+    amountCents: row.amount_cents,
+    currency: row.currency,
+    ip: row.ip,
+    userAgent: row.user_agent,
+    createdAt: row.created_at,
+    paidAt: row.paid_at,
+  };
+}
+
+export async function insertConsultingBooking(input: {
+  publicId: string;
+  name: string;
+  email: string;
+  package: "30" | "60";
+  preferredDate: string;
+  preferredTime: string;
+  topic: string;
+  locale: string;
+  amountCents: number;
+  currency: string;
+  ip: string | null;
+  userAgent: string | null;
+}): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare(
+        "INSERT INTO consulting_bookings (public_id, name, email, package, preferred_date, preferred_time, topic, locale, amount_cents, currency, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .bind(
+        input.publicId,
+        input.name,
+        input.email,
+        input.package,
+        input.preferredDate,
+        input.preferredTime,
+        input.topic,
+        input.locale,
+        input.amountCents,
+        input.currency,
+        input.ip,
+        input.userAgent,
+      )
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function setConsultingBookingStripeSession(
+  publicId: string,
+  stripeSessionId: string,
+): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare(
+        "UPDATE consulting_bookings SET stripe_session_id = ? WHERE public_id = ? AND status = 'pending'",
+      )
+      .bind(stripeSessionId, publicId)
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function markConsultingBookingPaid(
+  stripeSessionId: string,
+): Promise<ConsultingBooking | null> {
+  const db = getDb();
+  if (!db) return null;
+  if (!(await ensureD1Schema())) return null;
+  try {
+    await db
+      .prepare(
+        "UPDATE consulting_bookings SET status = 'paid', paid_at = datetime('now') WHERE stripe_session_id = ? AND status = 'pending'",
+      )
+      .bind(stripeSessionId)
+      .run();
+    const row = await db
+      .prepare(
+        "SELECT id, public_id, name, email, package, preferred_date, preferred_time, topic, locale, status, stripe_session_id, amount_cents, currency, ip, user_agent, created_at, paid_at FROM consulting_bookings WHERE stripe_session_id = ? LIMIT 1",
+      )
+      .bind(stripeSessionId)
+      .first<RawConsultingBooking>();
+    return row ? mapConsultingBooking(row) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getConsultingBookingByPublicId(
+  publicId: string,
+): Promise<ConsultingBooking | null> {
+  const db = getDb();
+  if (!db) return null;
+  if (!(await ensureD1Schema())) return null;
+  try {
+    const row = await db
+      .prepare(
+        "SELECT id, public_id, name, email, package, preferred_date, preferred_time, topic, locale, status, stripe_session_id, amount_cents, currency, ip, user_agent, created_at, paid_at FROM consulting_bookings WHERE public_id = ? LIMIT 1",
+      )
+      .bind(publicId)
+      .first<RawConsultingBooking>();
+    return row ? mapConsultingBooking(row) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function listConsultingBookings(limit = 50): Promise<ConsultingBooking[]> {
+  const db = getDb();
+  if (!db) return [];
+  if (!(await ensureD1Schema())) return [];
+  try {
+    const rows = await db
+      .prepare(
+        "SELECT id, public_id, name, email, package, preferred_date, preferred_time, topic, locale, status, stripe_session_id, amount_cents, currency, ip, user_agent, created_at, paid_at FROM consulting_bookings ORDER BY id DESC LIMIT ?",
+      )
+      .bind(Math.max(1, Math.min(limit, 200)))
+      .all<RawConsultingBooking>();
+    return rows.results.map(mapConsultingBooking);
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteConsultingBooking(id: number): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db.prepare("DELETE FROM consulting_bookings WHERE id = ?").bind(id).run();
     return true;
   } catch {
     return false;

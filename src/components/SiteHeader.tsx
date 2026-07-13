@@ -56,6 +56,12 @@ export async function SiteHeader({ locale }: Props) {
               {t("about")}
             </Link>
             <Link
+              href="/consulting"
+              className="shrink-0 snap-start rounded-md px-2.5 py-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--chip)] hover:text-[var(--text)]"
+            >
+              {t("consulting")}
+            </Link>
+            <Link
               href="/contact"
               className="shrink-0 snap-start rounded-md px-2.5 py-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--chip)] hover:text-[var(--text)]"
             >
