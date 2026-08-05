@@ -47,16 +47,12 @@ type SiteSettingRow = {
   setting_value: string;
 };
 
-const DEFAULT_ADSENSE_CLIENT = "ca-pub-2877579504931285";
 const scryptAsync = promisify(scrypt);
 let schemaReady = false;
 let schemaReadyPromise: Promise<boolean> | null = null;
 
 export type PublicSiteSettings = {
-  adsenseClient: string | null;
   analyticsMeasurementId: string | null;
-  adSlotBlogList: string;
-  adSlotBlogPost: string;
   turnstileSiteKey: string | null;
 };
 
@@ -868,14 +864,10 @@ function normalizeNullable(value: string | null | undefined): string | null {
 
 function parseSiteSettings(rows: SiteSettingRow[]): PublicSiteSettings {
   const map = new Map(rows.map((row) => [row.setting_key, row.setting_value]));
-  const envAds = normalizeNullable(process.env.NEXT_PUBLIC_ADSENSE_CLIENT);
   const envGa = normalizeNullable(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID);
   return {
-    adsenseClient: normalizeNullable(map.get("adsenseClient")) ?? envAds ?? DEFAULT_ADSENSE_CLIENT,
     analyticsMeasurementId:
       normalizeNullable(map.get("analyticsMeasurementId")) ?? envGa,
-    adSlotBlogList: normalizeNullable(map.get("adSlotBlogList")) ?? "1234567890",
-    adSlotBlogPost: normalizeNullable(map.get("adSlotBlogPost")) ?? "1234567891",
     turnstileSiteKey: normalizeNullable(map.get("turnstileSiteKey")),
   };
 }
@@ -887,7 +879,7 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
   try {
     const rows = await db
       .prepare(
-        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('adsenseClient', 'analyticsMeasurementId', 'adSlotBlogList', 'adSlotBlogPost', 'turnstileSiteKey')",
+        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('analyticsMeasurementId', 'turnstileSiteKey')",
       )
       .bind()
       .all<SiteSettingRow>();
@@ -898,22 +890,15 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
 }
 
 export async function savePublicSiteSettings(input: {
-  adsenseClient: string | null;
   analyticsMeasurementId: string | null;
-  adSlotBlogList: string | null;
-  adSlotBlogPost: string | null;
   turnstileSiteKey?: string | null;
-  turnstileSecretKey?: string | null;
 }): Promise<boolean> {
   const db = getDb();
   if (!db) return false;
   if (!(await ensureD1Schema())) return false;
 
   const settings: Array<[string, string | null]> = [
-    ["adsenseClient", normalizeNullable(input.adsenseClient)],
     ["analyticsMeasurementId", normalizeNullable(input.analyticsMeasurementId)],
-    ["adSlotBlogList", normalizeNullable(input.adSlotBlogList)],
-    ["adSlotBlogPost", normalizeNullable(input.adSlotBlogPost)],
     ["turnstileSiteKey", normalizeNullable(input.turnstileSiteKey)],
   ];
 

@@ -1,7 +1,5 @@
-import { AdSlot } from "@/components/AdSlot";
 import { BlogCard } from "@/components/BlogCard";
 import { Link } from "@/i18n/routing";
-import { getPublicSiteSettings } from "@/lib/d1";
 import { getAllPosts } from "@/lib/posts";
 import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -34,7 +32,6 @@ export default async function HomePage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
   const posts = await getAllPosts(locale);
-  const settings = await getPublicSiteSettings();
   const tr = locale === "tr";
   const latest = posts.slice(0, 4);
 
@@ -114,13 +111,6 @@ export default async function HomePage({ params }: Props) {
           </div>
         </div>
       </section>
-
-      {/* Ad Slot */}
-      <div className="border-y border-[var(--border)] bg-[var(--bg)] py-6">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <AdSlot client={settings.adsenseClient} slot={settings.adSlotBlogList} format="horizontal" />
-        </div>
-      </div>
 
       {/* Latest Insights (Blog) */}
       <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:py-20">

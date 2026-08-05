@@ -1,7 +1,6 @@
 import { BlogCard } from "@/components/BlogCard";
 import { BlogSidebar } from "@/components/BlogSidebar";
 import { categories } from "@/lib/cms";
-import { getPublicSiteSettings } from "@/lib/d1";
 import { getAllPosts } from "@/lib/posts";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
@@ -26,7 +25,6 @@ export default async function BlogIndexPage({ params, searchParams }: Props) {
   const query = await searchParams;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "blog" });
-  const settings = await getPublicSiteSettings();
   const tr = locale === "tr";
   const allPosts = await getAllPosts(locale);
   const q = (query.q ?? "").toLowerCase().trim();
@@ -84,7 +82,7 @@ export default async function BlogIndexPage({ params, searchParams }: Props) {
             <span className="rounded-md border border-[var(--border)] px-3 py-2">1</span>
           </nav>
         </section>
-        <BlogSidebar locale={locale} posts={allPosts} adsenseClient={settings.adsenseClient} adSlot={settings.adSlotBlogList} />
+        <BlogSidebar locale={locale} posts={allPosts} />
       </div>
     </div>
   );

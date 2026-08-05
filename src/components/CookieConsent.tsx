@@ -40,8 +40,8 @@ export function CookieConsent({ locale }: { locale: string }) {
           <p className="text-sm font-bold text-[var(--text)]">{tr ? "Çerez tercihleri" : "Cookie preferences"}</p>
           <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
             {tr
-              ? "Zorunlu çerezler sitenin çalışmasını sağlar. Analiz ve reklam çerezleri yalnızca onayınızla kullanılmalıdır."
-              : "Necessary cookies keep the site working. Analytics and advertising cookies should run only with your consent."}
+              ? "Zorunlu çerezler sitenin çalışmasını sağlar. Analiz çerezleri yalnızca onayınızla kullanılmalıdır."
+              : "Necessary cookies keep the site working. Analytics cookies should run only with your consent."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

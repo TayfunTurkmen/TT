@@ -1,6 +1,6 @@
 ## TT Personal Blog CMS
 
-Next.js 16 + OpenNext/Cloudflare setup for a bilingual, WordPress-like personal blog platform with a custom CMS panel, SEO-first public pages, AdSense-ready ad placements, cookie consent, demo content, and D1 migration files.
+Next.js 16 + OpenNext/Cloudflare setup for a bilingual, WordPress-like personal blog platform with a custom CMS panel, SEO-first public pages, cookie consent, demo content, and D1 migration files.
 
 ## Local Development
 
@@ -67,14 +67,6 @@ The app ships with 10 high-quality demo posts, 5 categories, author metadata, po
   - `SITE_URL` (e.g. `https://www.tayfunturkmen.com`)
   - `CRON_SECRET`
 
-## AdSense Compatibility
-
-- Set `NEXT_PUBLIC_ADSENSE_CLIENT` (e.g. `ca-pub-xxxxxxxxxxxx`).
-- Ad script is loaded only when this variable or the admin setting is set.
-- Ad slots are included on the homepage, blog archive, sidebar, and blog post pages.
-- Ad containers include visible labels and minimum heights so ads are separated from content and less likely to create layout shift.
-- This project is structured to be AdSense-ready, but it does not and cannot guarantee AdSense approval.
-
 ## Current D1 Usage
 
 - Binding name: `BLOG_DB`
@@ -92,4 +84,4 @@ The app ships with 10 high-quality demo posts, 5 categories, author metadata, po
 3. Run `npm run d1:migrate:remote`.
 4. Visit `/{locale}/admin` and create the initial admin user.
 5. Replace or delete demo content once real original articles are ready.
-6. Verify policy pages, contact form, cookie consent, sitemap, robots, and mobile layout before AdSense review.
+6. Verify policy pages, contact form, cookie consent, sitemap, robots, and mobile layout.

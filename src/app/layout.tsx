@@ -4,8 +4,6 @@ import Script from "next/script";
 import { getPublicSiteSettings } from "@/lib/d1";
 import "./globals.css";
 
-const DEFAULT_ADSENSE_CLIENT = "ca-pub-2877579504931285";
-
 const sans = Geist({
   subsets: ["latin"],
   variable: "--font-sans",
@@ -37,7 +35,6 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const settings = await getPublicSiteSettings();
-  const adsenseClient = settings.adsenseClient ?? DEFAULT_ADSENSE_CLIENT;
   const analyticsId = settings.analyticsMeasurementId;
 
   return (
@@ -46,13 +43,6 @@ export default async function RootLayout({
       suppressHydrationWarning
       className={`${sans.variable} ${mono.variable}`}
     >
-      <head>
-        <script
-          async
-          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
-          crossOrigin="anonymous"
-        />
-      </head>
       <body className="min-h-screen bg-[var(--bg)] font-[family-name:var(--font-sans)] text-[var(--text)] antialiased">
         <script
           dangerouslySetInnerHTML={{

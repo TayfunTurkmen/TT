@@ -20,7 +20,6 @@ export default async function CookiePolicyPage({ params }: Props) {
       sections={[
         { title: tr ? "Zorunlu çerezler" : "Necessary cookies", body: tr ? "Tema, dil, oturum ve güvenlik gibi temel işlevler için kullanılabilir." : "Used for essential features such as theme, language, sessions, and security." },
         { title: tr ? "Analiz çerezleri" : "Analytics cookies", body: tr ? "Site trafiğini anlamak için GA4 gibi araçlarla kullanılabilir ve onay gerektirir." : "May be used with tools like GA4 to understand site traffic and requires consent." },
-        { title: tr ? "Reklam çerezleri" : "Advertising cookies", body: tr ? "AdSense gibi reklam sağlayıcıları kişiselleştirme veya ölçüm için çerez kullanabilir." : "Advertising providers such as AdSense may use cookies for personalization or measurement." },
       ]}
     />
   );

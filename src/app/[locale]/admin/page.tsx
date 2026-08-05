@@ -73,10 +73,7 @@ export default async function AdminPage({ params }: Props) {
           }))}
           initialCronRuns={cronRuns}
           initialSettings={{
-            adsenseClient: marketing?.adsenseClient ?? "",
             analyticsMeasurementId: marketing?.analyticsMeasurementId ?? "",
-            adSlotBlogList: marketing?.adSlotBlogList ?? "1234567890",
-            adSlotBlogPost: marketing?.adSlotBlogPost ?? "1234567891",
             turnstileSiteKey: marketing?.turnstileSiteKey ?? "",
             aiApiBaseUrl: ai?.aiApiBaseUrl ?? "",
             aiModel: ai?.aiModel ?? "",

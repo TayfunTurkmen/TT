@@ -109,10 +109,7 @@ export function AdminPanel({
   initialPosts: AdminPost[];
   initialCronRuns: CronEntry[];
   initialSettings: {
-    adsenseClient: string;
     analyticsMeasurementId: string;
-    adSlotBlogList: string;
-    adSlotBlogPost: string;
     turnstileSiteKey: string;
     aiApiBaseUrl: string;
     aiModel: string;
@@ -452,11 +449,10 @@ export function AdminPanel({
                 "Pages: about, contact, privacy, cookies, terms",
                 "Taxonomy: parent categories and tags",
                 "Media: WebP/AVIF-ready metadata model",
-                "Ads: header, sidebar, in-article, mobile, sticky",
                 "SEO: sitemap, robots, canonical, schema, redirects",
                 "Users: admin, editor, author roles",
                 "Comments: approve, reject, spam, reply",
-                "Analytics: GA4, Search Console, Meta Pixel fields",
+                "Analytics: GA4, Search Console fields",
               ].map((item) => (
                 <p key={item} className="rounded-md border border-[var(--border)] bg-[var(--bg)] p-3">{item}</p>
               ))}
@@ -618,36 +614,11 @@ export function AdminPanel({
             </section>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-[var(--muted)]">
-                {t("adsenseClient")}
-                <input
-                  name="adsenseClient"
-                  defaultValue={initialSettings.adsenseClient}
-                  placeholder="ca-pub-xxxxxxxxxxxxxxxx"
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                />
-              </label>
-              <label className="text-sm text-[var(--muted)]">
                 {t("analyticsId")}
                 <input
                   name="analyticsMeasurementId"
                   defaultValue={initialSettings.analyticsMeasurementId}
                   placeholder="G-XXXXXXXXXX"
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                />
-              </label>
-              <label className="text-sm text-[var(--muted)]">
-                {t("adSlotBlogList")}
-                <input
-                  name="adSlotBlogList"
-                  defaultValue={initialSettings.adSlotBlogList}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                />
-              </label>
-              <label className="text-sm text-[var(--muted)]">
-                {t("adSlotBlogPost")}
-                <input
-                  name="adSlotBlogPost"
-                  defaultValue={initialSettings.adSlotBlogPost}
                   className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                 />
               </label>
