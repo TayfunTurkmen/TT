@@ -12,7 +12,6 @@ import {
   deleteContactMessage,
   deleteConsultingBooking,
   getAdminBlogPost,
-  getAdminSecuritySettings,
   getAdminTotpSecret,
   getAdminTwoFactorStatus,
   isAdminLoginBlocked,
@@ -25,13 +24,12 @@ import {
   saveAdminSmtpSettings,
   saveAdminTotpSecret,
   savePublicSiteSettings,
-  saveTurnstileSecret,
   setAdminTwoFactorEnabled,
   upsertBlogPost,
   verifyAdminUser,
 } from "@/lib/d1";
+import { isLikelyBotSubmission } from "@/lib/form-guard";
 import { buildTotpUri, generateTotpSecret, verifyTotpCode } from "@/lib/totp";
-import { verifyTurnstileResponse } from "@/lib/turnstile";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
@@ -66,20 +64,6 @@ function getClientIpFromHeaders(
   const xff = h.get("x-forwarded-for");
   if (xff) return xff.split(",")[0]?.trim() || "unknown";
   return "unknown";
-}
-
-async function verifyTurnstileIfEnabled(formData: FormData, ip: string): Promise<boolean> {
-  const settings = await getAdminSecuritySettings();
-  if (!settings.turnstileSecretKey) return true;
-  const token = String(formData.get("cf-turnstile-response") ?? "").trim();
-  return verifyTurnstileResponse(settings.turnstileSecretKey, token, ip);
-}
-
-function isLikelyBotSubmission(formData: FormData): boolean {
-  const honeypot = String(formData.get("website") ?? "").trim();
-  const renderedAt = Number(String(formData.get("formRenderedAt") ?? "0"));
-  const tooFast = Number.isFinite(renderedAt) && renderedAt > 0 && Date.now() - renderedAt < 900;
-  return Boolean(honeypot) || tooFast;
 }
 
 async function getLoginAttemptKeys(username: string, ip: string): Promise<string[]> {
@@ -125,12 +109,6 @@ export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
     await registerLoginFailure(attemptKeys);
     return { ok: false, error: "auth" };
   }
-
-  const turnstileOk = await verifyTurnstileIfEnabled(formData, ip);
-  if (!turnstileOk) {
-    await registerLoginFailure(attemptKeys);
-    return { ok: false, error: "auth" };
-  }
   const login = await verifyAdminUser(username, password);
   if (!login.ok) {
     await registerLoginFailure(attemptKeys);
@@ -152,11 +130,6 @@ export async function setupInitialAdmin(formData: FormData): Promise<AdminResult
   const attemptKeys = [`setup:${ip}`];
   if (await isAnyLoginKeyBlocked(attemptKeys)) return { ok: false, error: "auth" };
   if (isLikelyBotSubmission(formData)) {
-    await registerLoginFailure(attemptKeys);
-    return { ok: false, error: "auth" };
-  }
-  const turnstileOk = await verifyTurnstileIfEnabled(formData, ip);
-  if (!turnstileOk) {
     await registerLoginFailure(attemptKeys);
     return { ok: false, error: "auth" };
   }
@@ -543,23 +516,19 @@ export async function saveMarketingSettings(formData: FormData): Promise<AdminRe
 
   const analyticsMeasurementId =
     String(formData.get("analyticsMeasurementId") ?? "").trim() || null;
-  const turnstileSiteKey = String(formData.get("turnstileSiteKey") ?? "").trim() || null;
-  const turnstileSecretKey = String(formData.get("turnstileSecretKey") ?? "").trim();
   const aiApiBaseUrl = String(formData.get("aiApiBaseUrl") ?? "").trim() || null;
   const aiModel = String(formData.get("aiModel") ?? "").trim() || null;
   const aiApiKeyRaw = String(formData.get("aiApiKey") ?? "").trim();
 
   const ok = await savePublicSiteSettings({
     analyticsMeasurementId,
-    turnstileSiteKey,
   });
-  const secOk = turnstileSecretKey ? await saveTurnstileSecret(turnstileSecretKey) : true;
   const aiOk = await saveAdminAiSettings({
     aiApiBaseUrl,
     aiModel,
     aiApiKey: aiApiKeyRaw ? aiApiKeyRaw : undefined,
   });
-  if (!ok || !secOk || !aiOk) return { ok: false, error: "db" };
+  if (!ok || !aiOk) return { ok: false, error: "db" };
   return { ok: true, message: "settingsSaved" };
 }
 
