@@ -1,18 +1,13 @@
 import { Link } from "@/i18n/routing";
 import { categories } from "@/lib/cms";
 import type { Post } from "@/lib/posts";
-import { AdSlot } from "./AdSlot";
 
 export function BlogSidebar({
   locale,
   posts,
-  adsenseClient,
-  adSlot,
 }: {
   locale: string;
   posts: Post[];
-  adsenseClient: string | null;
-  adSlot: string;
 }) {
   const popular = [...posts].sort((a, b) => (b.views ?? 0) - (a.views ?? 0)).slice(0, 5);
   const safeLocale = locale === "tr" ? "tr" : "en";
@@ -71,7 +66,6 @@ export function BlogSidebar({
           </button>
         </form>
       </section>
-      <AdSlot client={adsenseClient} slot={adSlot} format="auto" />
     </aside>
   );
 }

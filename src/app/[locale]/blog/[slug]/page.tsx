@@ -1,10 +1,8 @@
-import { AdSlot } from "@/components/AdSlot";
 import { BlogCard } from "@/components/BlogCard";
 import { BlogSidebar } from "@/components/BlogSidebar";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { Link } from "@/i18n/routing";
 import { estimateReadingMinutes, extractHeadings, getAuthor, localizeCategory, scoreRelatedPosts } from "@/lib/cms";
-import { getPublicSiteSettings } from "@/lib/d1";
 import { getAllPosts, getPost } from "@/lib/posts";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
@@ -31,22 +29,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-function injectInArticleAds(markdown: string, adMarker: string) {
-  const paragraphs = markdown.split(/\n\n+/);
-  if (paragraphs.length < 3) return markdown;
-  const first = [...paragraphs];
-  first.splice(1, 0, adMarker);
-  first.splice(Math.floor(first.length / 2), 0, adMarker);
-  return first.join("\n\n");
-}
-
 export default async function BlogPostPage({ params }: Props) {
   const { locale, slug } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "blog" });
   const post = await getPost(locale, slug);
   if (!post) notFound();
-  const settings = await getPublicSiteSettings();
   const posts = await getAllPosts(locale);
   const headings = extractHeadings(post.content);
   const related = scoreRelatedPosts(post, posts);
@@ -118,10 +106,6 @@ export default async function BlogPostPage({ params }: Props) {
             </div>
           )}
 
-          <div className="mt-8">
-            <AdSlot client={settings.adsenseClient} slot={settings.adSlotBlogPost} format="horizontal" />
-          </div>
-
           {headings.length ? (
             <aside className="mt-8 rounded-lg border border-[var(--border)] bg-[var(--chip)] p-4">
               <h2 className="text-sm font-bold text-[var(--text)]">{tr ? "İçindekiler" : "Table of contents"}</h2>
@@ -132,11 +116,7 @@ export default async function BlogPostPage({ params }: Props) {
           ) : null}
 
           <div className="mt-8">
-            <MarkdownContent markdown={injectInArticleAds(post.content, "")} />
-          </div>
-
-          <div className="mt-8">
-            <AdSlot client={settings.adsenseClient} slot={settings.adSlotBlogPost} format="rectangle" />
+            <MarkdownContent markdown={post.content} />
           </div>
 
           <div className="mt-8 flex flex-wrap gap-2">
@@ -159,7 +139,7 @@ export default async function BlogPostPage({ params }: Props) {
             </div>
           </section>
         </article>
-        <BlogSidebar locale={locale} posts={posts} adsenseClient={settings.adsenseClient} adSlot={settings.adSlotBlogPost} />
+        <BlogSidebar locale={locale} posts={posts} />
       </div>
     </div>
   );

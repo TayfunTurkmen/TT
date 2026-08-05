@@ -541,11 +541,8 @@ export async function saveMarketingSettings(formData: FormData): Promise<AdminRe
   const jar = await cookies();
   if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
 
-  const adsenseClient = String(formData.get("adsenseClient") ?? "").trim() || null;
   const analyticsMeasurementId =
     String(formData.get("analyticsMeasurementId") ?? "").trim() || null;
-  const adSlotBlogList = String(formData.get("adSlotBlogList") ?? "").trim() || null;
-  const adSlotBlogPost = String(formData.get("adSlotBlogPost") ?? "").trim() || null;
   const turnstileSiteKey = String(formData.get("turnstileSiteKey") ?? "").trim() || null;
   const turnstileSecretKey = String(formData.get("turnstileSecretKey") ?? "").trim();
   const aiApiBaseUrl = String(formData.get("aiApiBaseUrl") ?? "").trim() || null;
@@ -553,10 +550,7 @@ export async function saveMarketingSettings(formData: FormData): Promise<AdminRe
   const aiApiKeyRaw = String(formData.get("aiApiKey") ?? "").trim();
 
   const ok = await savePublicSiteSettings({
-    adsenseClient,
     analyticsMeasurementId,
-    adSlotBlogList,
-    adSlotBlogPost,
     turnstileSiteKey,
   });
   const secOk = turnstileSecretKey ? await saveTurnstileSecret(turnstileSecretKey) : true;
