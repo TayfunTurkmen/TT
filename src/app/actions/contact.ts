@@ -1,12 +1,12 @@
 "use server";
 
 import {
-  getAdminSecuritySettings,
   getAdminSmtpSettings,
   insertContactMessage,
+  pingD1,
 } from "@/lib/d1";
+import { verifySimpleFormGuard } from "@/lib/form-guard";
 import { hasContactNotificationTransport, sendContactNotificationEmail } from "@/lib/smtp-send";
-import { verifyTurnstileResponse } from "@/lib/turnstile";
 import { headers } from "next/headers";
 
 function getClientIpFromHeaders(h: Headers): string {
@@ -19,20 +19,15 @@ function getClientIpFromHeaders(h: Headers): string {
 
 export type ContactFormResult =
   | { ok: true }
-  | { ok: false; error: "turnstile" | "invalid" | "db" | "config" };
+  | { ok: false; error: "bot" | "invalid" | "db" | "config" };
 
 export async function submitContactForm(formData: FormData): Promise<ContactFormResult> {
-  const settings = await getAdminSecuritySettings();
-  if (!settings.turnstileSiteKey || !settings.turnstileSecretKey) {
-    return { ok: false, error: "config" };
-  }
+  if (!(await pingD1())) return { ok: false, error: "config" };
+  if (!verifySimpleFormGuard(formData)) return { ok: false, error: "bot" };
 
   const h = await headers();
   const ip = getClientIpFromHeaders(h);
   const userAgent = h.get("user-agent");
-  const token = String(formData.get("cf-turnstile-response") ?? "");
-  const turnstileOk = await verifyTurnstileResponse(settings.turnstileSecretKey, token, ip);
-  if (!turnstileOk) return { ok: false, error: "turnstile" };
 
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
@@ -72,7 +67,6 @@ export async function submitContactForm(formData: FormData): Promise<ContactForm
         "Contact notification email failed",
         error instanceof Error ? error.message : "unknown",
       );
-      // Message is stored; email delivery may fail in some serverless environments.
     }
   }
 

@@ -21,7 +21,6 @@ import {
   updateAdminPost,
   unlockAdmin,
 } from "@/app/actions/admin";
-import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
@@ -110,7 +109,6 @@ export function AdminPanel({
   initialCronRuns: CronEntry[];
   initialSettings: {
     analyticsMeasurementId: string;
-    turnstileSiteKey: string;
     aiApiBaseUrl: string;
     aiModel: string;
     hasAiApiKey: boolean;
@@ -273,12 +271,6 @@ export function AdminPanel({
 
   return (
     <div className="space-y-8">
-      {initialSettings.turnstileSiteKey ? (
-        <Script
-          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
-          strategy="afterInteractive"
-        />
-      ) : null}
       {!hasAdminUser && !isUnlocked ? (
         <form
           className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
@@ -321,12 +313,6 @@ export function AdminPanel({
             className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
             placeholder={t("password")}
           />
-          {initialSettings.turnstileSiteKey ? (
-            <div
-              className="cf-turnstile mt-3"
-              data-sitekey={initialSettings.turnstileSiteKey}
-            />
-          ) : null}
           <button
             type="submit"
             disabled={pending}
@@ -393,12 +379,6 @@ export function AdminPanel({
             className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
             placeholder={t("twoFactorCode")}
           />
-          {initialSettings.turnstileSiteKey ? (
-            <div
-              className="cf-turnstile mt-3"
-              data-sitekey={initialSettings.turnstileSiteKey}
-            />
-          ) : null}
           <button
             type="submit"
             disabled={pending}
@@ -619,24 +599,6 @@ export function AdminPanel({
                   name="analyticsMeasurementId"
                   defaultValue={initialSettings.analyticsMeasurementId}
                   placeholder="G-XXXXXXXXXX"
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                />
-              </label>
-              <label className="text-sm text-[var(--muted)]">
-                {t("turnstileSiteKey")}
-                <input
-                  name="turnstileSiteKey"
-                  defaultValue={initialSettings.turnstileSiteKey}
-                  placeholder="0x4AAAA..."
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                />
-              </label>
-              <label className="text-sm text-[var(--muted)]">
-                {t("turnstileSecretKey")}
-                <input
-                  name="turnstileSecretKey"
-                  type="password"
-                  placeholder={locale === "tr" ? "Gizli anahtarı güncelle" : "Update secret key"}
                   className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
                 />
               </label>

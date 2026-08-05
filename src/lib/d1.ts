@@ -53,7 +53,6 @@ let schemaReadyPromise: Promise<boolean> | null = null;
 
 export type PublicSiteSettings = {
   analyticsMeasurementId: string | null;
-  turnstileSiteKey: string | null;
 };
 
 export type CronRun = {
@@ -868,7 +867,6 @@ function parseSiteSettings(rows: SiteSettingRow[]): PublicSiteSettings {
   return {
     analyticsMeasurementId:
       normalizeNullable(map.get("analyticsMeasurementId")) ?? envGa,
-    turnstileSiteKey: normalizeNullable(map.get("turnstileSiteKey")),
   };
 }
 
@@ -879,7 +877,7 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
   try {
     const rows = await db
       .prepare(
-        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('analyticsMeasurementId', 'turnstileSiteKey')",
+        "SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('analyticsMeasurementId')",
       )
       .bind()
       .all<SiteSettingRow>();
@@ -891,7 +889,6 @@ export async function getPublicSiteSettings(): Promise<PublicSiteSettings> {
 
 export async function savePublicSiteSettings(input: {
   analyticsMeasurementId: string | null;
-  turnstileSiteKey?: string | null;
 }): Promise<boolean> {
   const db = getDb();
   if (!db) return false;
@@ -899,7 +896,6 @@ export async function savePublicSiteSettings(input: {
 
   const settings: Array<[string, string | null]> = [
     ["analyticsMeasurementId", normalizeNullable(input.analyticsMeasurementId)],
-    ["turnstileSiteKey", normalizeNullable(input.turnstileSiteKey)],
   ];
 
   try {
@@ -1031,8 +1027,7 @@ export async function saveAdminAiSettings(input: {
 }
 
 export async function isContactFormConfigured(): Promise<boolean> {
-  const sec = await getAdminSecuritySettings();
-  return Boolean(sec.turnstileSiteKey && sec.turnstileSecretKey);
+  return Boolean(await pingD1());
 }
 
 export async function getAdminSmtpSettings(): Promise<AdminSmtpSettings> {

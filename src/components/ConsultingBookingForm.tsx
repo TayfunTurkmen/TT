@@ -2,21 +2,11 @@
 
 import { createConsultingCheckout } from "@/app/actions/consulting";
 import { formatMoney, type ConsultingPackage } from "@/lib/stripe";
-import Script from "next/script";
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useRef, useState, useTransition } from "react";
-
-declare global {
-  interface Window {
-    onConsultingTurnstileSuccess?: () => void;
-    onConsultingTurnstileExpired?: () => void;
-    onConsultingTurnstileError?: () => void;
-  }
-}
+import { useRef, useState, useTransition } from "react";
 
 type Props = {
   enabled: boolean;
-  turnstileSiteKey: string | null;
   price30: number;
   price60: number;
   currency: string;
@@ -25,7 +15,6 @@ type Props = {
 
 export function ConsultingBookingForm({
   enabled,
-  turnstileSiteKey,
   price30,
   price60,
   currency,
@@ -35,24 +24,12 @@ export function ConsultingBookingForm({
   const locale = useLocale();
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
-  const [turnstileKey, setTurnstileKey] = useState(0);
-  const [challengeReady, setChallengeReady] = useState(false);
+  const [humanChecked, setHumanChecked] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<ConsultingPackage>("30");
+  const [formRenderedAt] = useState(() => String(Date.now()));
   const formRef = useRef<HTMLFormElement>(null);
 
   const minDate = new Date().toISOString().slice(0, 10);
-
-  useEffect(() => {
-    window.onConsultingTurnstileSuccess = () => setChallengeReady(true);
-    window.onConsultingTurnstileExpired = () => setChallengeReady(false);
-    window.onConsultingTurnstileError = () => setChallengeReady(false);
-
-    return () => {
-      delete window.onConsultingTurnstileSuccess;
-      delete window.onConsultingTurnstileExpired;
-      delete window.onConsultingTurnstileError;
-    };
-  }, []);
 
   if (!enabled) {
     return (
@@ -62,12 +39,6 @@ export function ConsultingBookingForm({
 
   return (
     <>
-      {turnstileSiteKey ? (
-        <Script
-          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
-          strategy="afterInteractive"
-        />
-      ) : null}
       {cancelled ? (
         <p className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--muted)]">
           {t("cancelled")}
@@ -86,14 +57,22 @@ export function ConsultingBookingForm({
               window.location.href = res.checkoutUrl;
               return;
             }
-            if (res.error === "turnstile") setErr(t("errorTurnstile"));
+            if (res.error === "bot") setErr(t("errorBot"));
             else if (res.error === "config") setErr(t("disabled"));
             else setErr(t("error"));
-            setChallengeReady(false);
-            setTurnstileKey((k) => k + 1);
           });
         }}
       >
+        <input type="hidden" name="formRenderedAt" value={formRenderedAt} />
+        <input
+          type="text"
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          className="hidden"
+          aria-hidden="true"
+        />
+
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold text-[var(--text)]">{t("packageLabel")}</legend>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -186,19 +165,18 @@ export function ConsultingBookingForm({
           />
         </label>
 
-        {turnstileSiteKey ? (
-          <div className="w-full min-w-0 overflow-x-auto py-1 [-webkit-overflow-scrolling:touch]">
-            <div
-              key={turnstileKey}
-              className="cf-turnstile mx-auto w-fit max-w-full sm:mx-0"
-              data-sitekey={turnstileSiteKey}
-              data-size="flexible"
-              data-callback="onConsultingTurnstileSuccess"
-              data-expired-callback="onConsultingTurnstileExpired"
-              data-error-callback="onConsultingTurnstileError"
-            />
-          </div>
-        ) : null}
+        <label className="flex items-start gap-2 text-sm text-[var(--muted)]">
+          <input
+            name="humanCheck"
+            type="checkbox"
+            value="on"
+            required
+            checked={humanChecked}
+            onChange={(e) => setHumanChecked(e.target.checked)}
+            className="mt-1 rounded border-[var(--border)]"
+          />
+          <span>{t("humanCheck")}</span>
+        </label>
 
         <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-xs leading-5 text-[var(--muted)]">
           {t("paymentNote")}
@@ -206,15 +184,12 @@ export function ConsultingBookingForm({
 
         <button
           type="submit"
-          disabled={pending || !turnstileSiteKey || !challengeReady}
+          disabled={pending || !humanChecked}
           className="w-full min-h-11 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[#041016] disabled:opacity-50 sm:w-auto sm:min-w-[12rem]"
         >
           {pending ? t("redirecting") : t("payAndBook")}
         </button>
 
-        {turnstileSiteKey && !challengeReady ? (
-          <p className="text-sm leading-relaxed text-[var(--muted)]">{t("waitingChallenge")}</p>
-        ) : null}
         {err ? <p className="text-sm leading-relaxed text-[#ff9a9a]">{err}</p> : null}
       </form>
     </>

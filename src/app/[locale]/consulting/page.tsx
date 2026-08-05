@@ -1,6 +1,6 @@
 import { ConsultingBookingForm } from "@/components/ConsultingBookingForm";
 import { formatMoney } from "@/lib/stripe";
-import { getPublicConsultingSettings, getPublicSiteSettings } from "@/lib/d1";
+import { getPublicConsultingSettings } from "@/lib/d1";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
 
@@ -24,7 +24,6 @@ export default async function ConsultingPage({ params, searchParams }: Props) {
   const { cancelled } = await searchParams;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "consulting" });
-  const site = await getPublicSiteSettings();
   const consulting = await getPublicConsultingSettings();
 
   return (
@@ -70,7 +69,6 @@ export default async function ConsultingPage({ params, searchParams }: Props) {
         <div className="mt-5">
           <ConsultingBookingForm
             enabled={consulting.enabled}
-            turnstileSiteKey={site.turnstileSiteKey}
             price30={consulting.price30}
             price60={consulting.price60}
             currency={consulting.currency}

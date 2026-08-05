@@ -2,21 +2,20 @@
 
 import {
   getAdminConsultingSettings,
-  getAdminSecuritySettings,
   getAdminSmtpSettings,
   insertConsultingBooking,
   setConsultingBookingStripeSession,
 } from "@/lib/d1";
+import { verifySimpleFormGuard } from "@/lib/form-guard";
 import { getStripeClient, packageLabel, type ConsultingPackage } from "@/lib/stripe";
 import { hasContactNotificationTransport, sendContactNotificationEmail } from "@/lib/smtp-send";
-import { verifyTurnstileResponse } from "@/lib/turnstile";
 import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 
 function getClientIpFromHeaders(h: Headers): string {
   const cf = h.get("cf-connecting-ip");
   if (cf) return cf;
-  const xff = h.get("x-forwarding-for");
+  const xff = h.get("x-forwarded-for");
   if (xff) return xff.split(",")[0]?.trim() || "unknown";
   return "unknown";
 }
@@ -33,7 +32,7 @@ function newPublicId(): string {
 
 export type ConsultingCheckoutResult =
   | { ok: true; checkoutUrl: string }
-  | { ok: false; error: "config" | "turnstile" | "invalid" | "db" | "stripe" };
+  | { ok: false; error: "config" | "bot" | "invalid" | "db" | "stripe" };
 
 export async function createConsultingCheckout(
   formData: FormData,
@@ -43,19 +42,12 @@ export async function createConsultingCheckout(
     return { ok: false, error: "config" };
   }
 
-  const security = await getAdminSecuritySettings();
-  if (!security.turnstileSiteKey || !security.turnstileSecretKey) {
-    return { ok: false, error: "config" };
-  }
+  if (!verifySimpleFormGuard(formData)) return { ok: false, error: "bot" };
 
   const h = await headers();
   const ip = getClientIpFromHeaders(h);
   const userAgent = h.get("user-agent");
   const origin = getSiteOrigin(h);
-
-  const token = String(formData.get("cf-turnstile-response") ?? "");
-  const turnstileOk = await verifyTurnstileResponse(security.turnstileSecretKey, token, ip);
-  if (!turnstileOk) return { ok: false, error: "turnstile" };
 
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();

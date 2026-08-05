@@ -74,7 +74,6 @@ export default async function AdminPage({ params }: Props) {
           initialCronRuns={cronRuns}
           initialSettings={{
             analyticsMeasurementId: marketing?.analyticsMeasurementId ?? "",
-            turnstileSiteKey: marketing?.turnstileSiteKey ?? "",
             aiApiBaseUrl: ai?.aiApiBaseUrl ?? "",
             aiModel: ai?.aiModel ?? "",
             hasAiApiKey: Boolean(ai?.aiApiKey),
