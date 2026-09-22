@@ -51,6 +51,7 @@ export default async function AboutPage({ params }: Props) {
           <li>{t("edu1")}</li>
           <li>{t("edu2")}</li>
           <li>{t("edu3")}</li>
+          <li>{t("edu4")}</li>
         </ul>
       </section>
 

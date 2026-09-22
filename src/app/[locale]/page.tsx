@@ -21,7 +21,8 @@ const portfolioItems = [
   { name: "Prof. Dr. Ali Ayyıldız", logo: "/profdraliayyildiz.png", link: "https://www.profdraliayyildiz.com" },
   { name: "AAIC LTD", logo: "/aaicltd.png", link: "https://www.aaicltd.co.uk" },
   { name: "HPS Health", logo: "/hpshealth.png", link: "https://www.hpshealth.co.uk" },
-  { name: "Medigo Academy", logo: "/medigoacademy.png", link: "https://www.medigoacademy.com" },
+  { name: "MediGoAcademy", logo: "/medigoacademy.png", link: "https://www.medigoacademy.com" },
+  { name: "Sahibinden Konut Al", logo: "/sahibindenkonutal.png", link: "https://www.sahibindenkonutal.com" },
   { name: "Kitapol", logo: "/kitapol.png", link: "https://www.kitapol.com.tr" },
   { name: "Misyonum Sağlık", logo: "/misyonumsaglikvebeslenme.png", link: "https://www.misyonumsaglikvebeslenme.com" },
   { name: "Endova", logo: "/endova.png", link: "#" },
@@ -37,8 +38,8 @@ export default async function HomePage({ params }: Props) {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Hero Section */}
-      <section className="relative isolate h-[clamp(20rem,25vw,32rem)] overflow-hidden border-b border-[var(--border)] bg-white">
+      {/* Hero — minimal, image-led */}
+      <section className="relative isolate h-[clamp(16rem,32vh,24rem)] overflow-hidden border-b border-[var(--border)] bg-[var(--bg)] sm:h-[clamp(18rem,36vh,28rem)]">
         <Image
           src="/tayfun-turkmen-cover.png"
           alt=""
@@ -46,34 +47,40 @@ export default async function HomePage({ params }: Props) {
           priority
           unoptimized
           sizes="100vw"
-          className="select-none object-cover object-[50%_48%]"
+          className="select-none object-cover object-[50%_42%]"
         />
-        <div className="absolute inset-x-0 bottom-4 z-10 flex justify-center px-4 sm:bottom-6">
-          <nav
-            aria-label={tr ? "Ana sayfa işlemleri" : "Homepage actions"}
-            className="glass-surface flex w-full max-w-sm items-center gap-1.5 rounded-lg p-1.5"
-          >
-            <a
-              href="#portfolio"
-              className="flex min-h-10 flex-1 items-center justify-center rounded-md bg-[var(--text)] px-4 text-sm font-semibold text-[var(--bg)] transition-opacity hover:opacity-90"
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent"
+        />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-6 sm:px-6 sm:pb-8">
+          <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-white/70">
+                {tr ? "Web · Güvenlik · Sistemler" : "Web · Security · Systems"}
+              </p>
+              <h1 className="mt-1.5 font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                Tayfun Türkmen
+              </h1>
+            </div>
+            <nav
+              aria-label={tr ? "Ana sayfa işlemleri" : "Homepage actions"}
+              className="flex items-center gap-5 text-sm font-medium"
             >
-              {tr ? "Projeler" : "Projects"}
-            </a>
-            <Link
-              href="/contact"
-              className="flex min-h-10 flex-1 items-center justify-center rounded-md px-4 text-sm font-semibold text-[var(--text)] transition-colors hover:bg-[var(--chip)]"
-            >
-              {tr ? "İletişim" : "Contact"}
-            </Link>
-          </nav>
-        </div>
-        <div className="sr-only">
-          <h1>Tayfun Türkmen</h1>
-          <p>
-            {tr
-              ? "Web tasarım, yapay zekâ, veri ve siber güvenlik sistemleri."
-              : "Web design, AI, data and cybersecurity systems."}
-          </p>
+              <a
+                href="#portfolio"
+                className="text-white/90 underline-offset-4 transition hover:text-white hover:underline"
+              >
+                {tr ? "Referanslar" : "Work"}
+              </a>
+              <Link
+                href="/contact"
+                className="text-white/90 underline-offset-4 transition hover:text-white hover:underline"
+              >
+                {tr ? "İletişim" : "Contact"}
+              </Link>
+            </nav>
+          </div>
         </div>
       </section>
 
