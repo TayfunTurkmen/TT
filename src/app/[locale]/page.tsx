@@ -22,7 +22,7 @@ const portfolioItems = [
   { name: "AAIC LTD", logo: "/aaicltd.png", link: "https://www.aaicltd.co.uk" },
   { name: "HPS Health", logo: "/hpshealth.png", link: "https://www.hpshealth.co.uk" },
   { name: "MediGoAcademy", logo: "/medigoacademy.png", link: "https://www.medigoacademy.com" },
-  { name: "Sahibinden Konut Al", logo: "/sahibindenkonutal.png", link: "https://www.sahibindenkonutal.com" },
+  { name: "Sende Konut Al", logo: "/sendekonutal.png", link: "https://www.sendekonutal.com/tr" },
   { name: "Kitapol", logo: "/kitapol.png", link: "https://www.kitapol.com.tr" },
   { name: "Misyonum Sağlık", logo: "/misyonumsaglikvebeslenme.png", link: "https://www.misyonumsaglikvebeslenme.com" },
   { name: "Endova", logo: "/endova.png", link: "#" },
