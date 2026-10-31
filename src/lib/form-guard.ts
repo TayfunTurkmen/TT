@@ -7,8 +7,11 @@
 
 export function isLikelyBotSubmission(formData: FormData): boolean {
   const honeypot = String(formData.get("website") ?? "").trim();
-  const renderedAt = Number(String(formData.get("formRenderedAt") ?? "0"));
-  const tooFast = Number.isFinite(renderedAt) && renderedAt > 0 && Date.now() - renderedAt < 900;
+  // Elapsed time is measured in the browser (see useFormElapsed), so a visitor
+  // whose device clock differs from the server's is not mistaken for a bot.
+  const rawElapsed = formData.get("formElapsedMs");
+  const elapsed = rawElapsed === null || rawElapsed === "" ? Number.NaN : Number(rawElapsed);
+  const tooFast = Number.isFinite(elapsed) && elapsed < 900;
   return Boolean(honeypot) || tooFast;
 }
 

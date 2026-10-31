@@ -1,6 +1,7 @@
 "use client";
 
 import { unlockAdmin } from "@/app/actions/admin";
+import { useFormElapsed } from "@/lib/form-timing";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
@@ -20,8 +21,7 @@ export function AdminLogin({ configured, problems, twoFactorEnabled }: Props) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [lastUsername, setLastUsername] = useState("");
-  const [formRenderedAt] = useState(() => String(Date.now()));
+  const formElapsed = useFormElapsed();
 
   if (!configured) {
     return (
@@ -53,9 +53,11 @@ export function AdminLogin({ configured, problems, twoFactorEnabled }: Props) {
   return (
     <form
       className="mx-auto max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 shadow-[var(--shadow-md)] sm:p-8"
-      action={(fd) => {
+      onSubmit={(event) => {
+        event.preventDefault();
+        const fd = new FormData(event.currentTarget);
+        fd.set("formElapsedMs", String(formElapsed()));
         setError(null);
-        setLastUsername(String(fd.get("username") ?? ""));
         start(async () => {
           const res = await unlockAdmin(fd);
           if (res.ok) {
@@ -68,7 +70,6 @@ export function AdminLogin({ configured, problems, twoFactorEnabled }: Props) {
         });
       }}
     >
-      <input type="hidden" name="formRenderedAt" value={formRenderedAt} />
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
 
       <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--accent-ink)]">
@@ -83,7 +84,7 @@ export function AdminLogin({ configured, problems, twoFactorEnabled }: Props) {
       <div className="mt-6 space-y-4">
         <label className="block text-sm font-medium text-[var(--text)]">
           {t("username")}
-          <input name="username" type="text" required defaultValue={lastUsername} autoComplete="username" autoCapitalize="none" spellCheck={false} className={fieldClass} />
+          <input name="username" type="text" required autoComplete="username" autoCapitalize="none" spellCheck={false} className={fieldClass} />
         </label>
         <label className="block text-sm font-medium text-[var(--text)]">
           {t("password")}

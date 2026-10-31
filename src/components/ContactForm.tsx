@@ -1,6 +1,7 @@
 "use client";
 
 import { submitContactForm } from "@/app/actions/contact";
+import { useFormElapsed } from "@/lib/form-timing";
 import { useLocale, useTranslations } from "next-intl";
 import { useRef, useState, useTransition } from "react";
 
@@ -11,7 +12,7 @@ export function ContactForm({ enabled }: { enabled: boolean }) {
   const [info, setInfo] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [humanChecked, setHumanChecked] = useState(false);
-  const [formRenderedAt] = useState(() => String(Date.now()));
+  const formElapsed = useFormElapsed();
   const formRef = useRef<HTMLFormElement>(null);
 
   if (!enabled) {
@@ -24,8 +25,12 @@ export function ContactForm({ enabled }: { enabled: boolean }) {
     <form
       ref={formRef}
       className="mt-4 w-full min-w-0 space-y-4"
-      action={(fd) => {
+      // onSubmit (not `action`) so React does not clear the fields when sending fails.
+      onSubmit={(event) => {
+        event.preventDefault();
+        const fd = new FormData(event.currentTarget);
         fd.set("locale", locale);
+        fd.set("formElapsedMs", String(formElapsed()));
         setInfo(null);
         setErr(null);
         start(async () => {
@@ -41,7 +46,6 @@ export function ContactForm({ enabled }: { enabled: boolean }) {
         });
       }}
     >
-      <input type="hidden" name="formRenderedAt" value={formRenderedAt} />
       <input
         type="text"
         name="website"
@@ -107,7 +111,7 @@ export function ContactForm({ enabled }: { enabled: boolean }) {
       {info ? (
         <p className="text-sm leading-relaxed text-[var(--accent-2)]">{info}</p>
       ) : null}
-      {err ? <p className="text-sm leading-relaxed text-[#ff9a9a]">{err}</p> : null}
+      {err ? <p role="alert" className="text-sm leading-relaxed text-[var(--danger)]">{err}</p> : null}
     </form>
   );
 }
