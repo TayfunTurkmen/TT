@@ -1,4 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import fs from "node:fs";
+import path from "node:path";
 
 type R2BucketLike = {
   put: (
@@ -20,6 +22,12 @@ type MediaEnv = {
 
 const DEFAULT_PUBLIC_BASE_URL = "https://cdn.tayfunturkmen.com";
 
+export function getStorageDirectory(): string {
+  const custom = (process.env.STORAGE_PATH || "").trim();
+  if (custom) return custom;
+  return path.join(process.cwd(), "uploads");
+}
+
 export function getMediaEnv(): MediaEnv {
   try {
     const { env } = getCloudflareContext();
@@ -29,15 +37,34 @@ export function getMediaEnv(): MediaEnv {
       publicBaseUrl:
         typeof raw.R2_PUBLIC_BASE_URL === "string" && raw.R2_PUBLIC_BASE_URL.trim()
           ? raw.R2_PUBLIC_BASE_URL.trim()
-          : DEFAULT_PUBLIC_BASE_URL,
+          : (process.env.STORAGE_PUBLIC_URL || "").trim(),
     };
   } catch {
-    return { bucket: null, publicBaseUrl: DEFAULT_PUBLIC_BASE_URL };
+    return {
+      bucket: null,
+      publicBaseUrl: (process.env.STORAGE_PUBLIC_URL || "").trim(),
+    };
   }
 }
 
-export function publicMediaUrl(key: string, publicBaseUrl = DEFAULT_PUBLIC_BASE_URL) {
-  return `${publicBaseUrl.replace(/\/+$/g, "")}/${key.replace(/^\/+/g, "")}`;
+export function publicMediaUrl(key: string, customBaseUrl?: string) {
+  const cleanKey = key.replace(/^\/+/g, "");
+  const base = (customBaseUrl || process.env.R2_PUBLIC_BASE_URL || process.env.STORAGE_PUBLIC_URL || "").trim();
+  if (base) {
+    return `${base.replace(/\/+$/g, "")}/${cleanKey}`;
+  }
+  return `/api/media/${cleanKey}`;
+}
+
+export async function saveMediaFile(key: string, buffer: Buffer | ArrayBuffer | string): Promise<string> {
+  const storageDir = getStorageDirectory();
+  const filePath = path.join(storageDir, ...key.split("/"));
+  const dirPath = path.dirname(filePath);
+
+  await fs.promises.mkdir(dirPath, { recursive: true });
+  await fs.promises.writeFile(filePath, Buffer.from(buffer as ArrayBuffer));
+
+  return publicMediaUrl(key);
 }
 
 function colorForSlug(slug: string) {
@@ -165,12 +192,19 @@ export async function putGeneratedPostThumbnail(input: {
   category?: string | null;
   slug: string;
 }) {
-  const { bucket, publicBaseUrl } = getMediaEnv();
-  if (!bucket) return null;
+  const svg = buildPostThumbnailSvg(input);
   const key = `media/thumbnails/v2/${input.slug}.svg`;
-  await bucket.put(key, buildPostThumbnailSvg(input), {
-    httpMetadata: { contentType: "image/svg+xml; charset=utf-8" },
-    customMetadata: { title: input.title.slice(0, 120) },
-  });
-  return publicMediaUrl(key, publicBaseUrl);
+  const { bucket, publicBaseUrl } = getMediaEnv();
+
+  if (bucket) {
+    await bucket.put(key, svg, {
+      httpMetadata: { contentType: "image/svg+xml; charset=utf-8" },
+      customMetadata: { title: input.title.slice(0, 120) },
+    });
+    return publicMediaUrl(key, publicBaseUrl);
+  }
+
+  // Persistent storage fallback
+  await saveMediaFile(key, Buffer.from(svg, "utf-8"));
+  return publicMediaUrl(key);
 }

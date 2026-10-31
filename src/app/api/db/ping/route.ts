@@ -10,7 +10,7 @@ export async function GET() {
     return NextResponse.json(
       {
         connected: false,
-        error: "D1 binding (BLOG_DB) not found in Cloudflare env.",
+        error: "Database (PostgreSQL or D1) not connected.",
       },
       { status: 503 },
     );

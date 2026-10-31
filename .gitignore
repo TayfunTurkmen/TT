@@ -40,6 +40,9 @@ yarn-error.log*
 .vercel
 .wrangler
 
+# persistent storage / uploads
+/uploads
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

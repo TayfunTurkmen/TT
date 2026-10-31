@@ -1,4 +1,5 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { getPostgresDb, getPostgresPool, initPostgresSchema } from "@/lib/postgres";
 
 type D1Stmt = {
   bind: (...values: unknown[]) => {
@@ -87,6 +88,9 @@ export type ContactMessage = {
 };
 
 function getDb(): D1Like | null {
+  const pgDb = getPostgresDb();
+  if (pgDb) return pgDb;
+
   try {
     const { env } = getCloudflareContext();
     return (env as unknown as Record<string, unknown>).BLOG_DB as D1Like | null;
@@ -96,6 +100,11 @@ function getDb(): D1Like | null {
 }
 
 async function ensureD1SchemaUncached() {
+  const pool = getPostgresPool();
+  if (pool) {
+    return initPostgresSchema(pool);
+  }
+
   const db = getDb();
   if (!db) return false;
 
