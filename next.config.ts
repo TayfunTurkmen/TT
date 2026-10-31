@@ -36,6 +36,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/@swc/helpers/**/*"],
+  },
   webpack: (config) => {
     return config;
   },

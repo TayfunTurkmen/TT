@@ -16,5 +16,13 @@ if (fs.existsSync(standaloneDir)) {
   if (fs.existsSync(staticSrc)) {
     fs.cpSync(staticSrc, staticDest, { recursive: true });
   }
-  console.log("Copied standalone static assets successfully.");
+
+  // Next.js standalone tracer can miss the esm/ subfolder in @swc/helpers
+  const swcSrc = path.join(root, "node_modules", "@swc", "helpers");
+  const swcDest = path.join(standaloneDir, "node_modules", "@swc", "helpers");
+  if (fs.existsSync(swcSrc)) {
+    fs.cpSync(swcSrc, swcDest, { recursive: true });
+  }
+
+  console.log("Copied standalone static assets and @swc/helpers successfully.");
 }
