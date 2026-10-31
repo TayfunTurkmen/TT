@@ -1,5 +1,6 @@
 import { generateDraft } from "@/lib/auto-blog";
 import { logAutoBlogRun } from "@/lib/d1";
+import { safeEqual } from "@/lib/signed-token";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
   }
 
   const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${expected}`) {
+  if (!safeEqual(auth ?? "", `Bearer ${expected}`)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 

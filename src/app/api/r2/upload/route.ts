@@ -1,5 +1,5 @@
+import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getMediaEnv, publicMediaUrl } from "@/lib/r2-media";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -17,8 +17,7 @@ function safeFileName(name: string) {
 }
 
 export async function POST(request: Request) {
-  const jar = await cookies();
-  if (jar.get("admin_ok")?.value !== "1") {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ ok: false, error: "locked" }, { status: 401 });
   }
 

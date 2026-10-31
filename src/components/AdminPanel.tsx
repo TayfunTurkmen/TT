@@ -2,28 +2,27 @@
 
 import {
   bulkDeleteAdminPostGroups,
-  createAdminTwoFactorSetup,
+  checkTwoFactorCode,
+  createTwoFactorSecret,
   deleteAdminPostGroup,
   deleteContactMessageAdmin,
   deleteConsultingBookingAdmin,
-  disableAdminTwoFactor,
-  enableAdminTwoFactor,
   generateEditorDraft,
   generateBulkAiDrafts,
+  logoutAdmin,
   publishAdminPost,
   runCronNow,
   saveMarketingSettings,
   saveConsultingSettings,
   saveAdminPost,
   saveSmtpSettings,
-  setupInitialAdmin,
   syncSitePostsToAdmin,
   updateAdminPost,
-  unlockAdmin,
 } from "@/app/actions/admin";
+import { AdminLogin } from "@/components/AdminLogin";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 type AdminPost = {
   slug: string;
@@ -89,10 +88,27 @@ function toAutoSlug(value: string): string {
     .slice(0, 120);
 }
 
+type AdminTab = "editor" | "posts" | "automation" | "contact" | "consulting" | "settings" | "security";
+
+function StatusPill({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
+        ok
+          ? "border-[var(--border)] text-[var(--text)]"
+          : "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)]"
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${ok ? "bg-[var(--success)]" : "bg-[var(--danger)]"}`} aria-hidden />
+      {label}
+    </span>
+  );
+}
+
 export function AdminPanel({
-  enabled,
-  hasAdminUser,
-  unlocked,
+  auth,
+  session,
+  d1Connected,
   initialPosts,
   initialCronRuns,
   initialSettings,
@@ -100,11 +116,10 @@ export function AdminPanel({
   initialConsulting,
   initialConsultingBookings,
   initialSmtp,
-  initialTwoFactor,
 }: {
-  enabled: boolean;
-  hasAdminUser: boolean;
-  unlocked: boolean;
+  auth: { configured: boolean; problems: string[]; twoFactorEnabled: boolean };
+  session: { username: string; expiresAt: number } | null;
+  d1Connected: boolean;
   initialPosts: AdminPost[];
   initialCronRuns: CronEntry[];
   initialSettings: {
@@ -133,17 +148,12 @@ export function AdminPanel({
     smtpSecure: boolean;
     hasSmtpPassword: boolean;
   };
-  initialTwoFactor: {
-    enabled: boolean;
-    hasSecret: boolean;
-  };
 }) {
   const t = useTranslations("admin");
   const locale = useLocale();
   const router = useRouter();
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const [isUnlocked, setIsUnlocked] = useState(unlocked);
   const [editorTopic, setEditorTopic] = useState("");
   const [editorSources, setEditorSources] = useState("");
   const [editorTitle, setEditorTitle] = useState("");
@@ -153,15 +163,9 @@ export function AdminPanel({
   const [editorPublished, setEditorPublished] = useState(false);
   const [editorScheduleDate, setEditorScheduleDate] = useState("");
   const [editingTarget, setEditingTarget] = useState<{ locale: string; slug: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<
-    "editor" | "posts" | "automation" | "contact" | "consulting" | "settings"
-  >("editor");
-  const [formRenderedAt] = useState(() => String(Date.now()));
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(initialTwoFactor.enabled);
-  const [twoFactorSetup, setTwoFactorSetup] = useState<{
-    manualKey: string;
-    otpauthUri: string;
-  } | null>(null);
+  const [activeTab, setActiveTab] = useState<AdminTab>(d1Connected ? "editor" : "security");
+  const [twoFactorDraft, setTwoFactorDraft] = useState<{ secret: string; otpauthUri: string } | null>(null);
+  const [twoFactorTestCode, setTwoFactorTestCode] = useState("");
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [blocks, setBlocks] = useState<EditorBlock[]>([]);
   const slugPreview = useMemo(
@@ -175,6 +179,11 @@ export function AdminPanel({
       return acc;
     }, {}),
   );
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
   const toggleSlugSelection = (slug: string) =>
     setSelectedSlugs((prev) =>
       prev.includes(slug) ? prev.filter((x) => x !== slug) : [...prev, slug],
@@ -261,212 +270,209 @@ export function AdminPanel({
     setActiveTab("editor");
   };
 
-  if (!enabled) {
+  if (!session) {
     return (
-      <p className="rounded-xl border border-[var(--border)] bg-[var(--chip)] p-4 text-sm text-[var(--muted)]">
-        {t("locked")}
-      </p>
+      <AdminLogin
+        configured={auth.configured}
+        problems={auth.problems}
+        twoFactorEnabled={auth.twoFactorEnabled}
+      />
     );
   }
 
+  const tabs: Array<[AdminTab, string]> = [
+    ["editor", t("tabEditor")],
+    ["posts", t("tabPosts")],
+    ["automation", t("tabAutomation")],
+    ["contact", t("tabContact")],
+    ["consulting", t("tabConsulting")],
+    ["settings", t("tabSettings")],
+    ["security", t("tabSecurity")],
+  ];
+  const securityChecks: Array<[string, boolean]> = [
+    [t("checkCredentials"), true],
+    [t("checkSession"), true],
+    [t("checkRateLimit"), true],
+    [t("checkTwoFactor"), auth.twoFactorEnabled],
+    [t("checkD1"), d1Connected],
+  ];
+  const sessionEnds = new Date(session.expiresAt).toLocaleTimeString(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
   return (
-    <div className="space-y-8">
-      {!hasAdminUser && !isUnlocked ? (
-        <form
-          className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
-          action={(fd) => {
-            setMessage(null);
-            start(async () => {
-              const res = await setupInitialAdmin(fd);
-              if (!res.ok) {
-                const err = res.error === "invalid" ? t("setupInvalid") : t("error");
-                setMessage(err);
-                return;
-              }
-              setMessage(t("registered"));
-              setIsUnlocked(true);
-            });
-          }}
-        >
-          <input type="hidden" name="formRenderedAt" value={formRenderedAt} />
-          <input
-            type="text"
-            name="website"
-            tabIndex={-1}
-            autoComplete="off"
-            className="hidden"
-            aria-hidden="true"
-          />
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
-            {t("setupTitle")}
-          </h2>
-          <p className="mt-2 text-sm text-[var(--muted)]">{t("setupLead")}</p>
-          <input
-            name="username"
-            type="text"
-            className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
-            placeholder={t("username")}
-          />
-          <input
-            name="password"
-            type="password"
-            className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
-            placeholder={t("password")}
-          />
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)] sm:text-3xl">{t("title")}</h1>
+          <p className="mt-1.5 text-sm text-[var(--muted)]">
+            {t("signedInAs", { username: session.username })} ·{" "}
+            <time suppressHydrationWarning>{t("sessionEnds", { time: sessionEnds })}</time>
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusPill ok={d1Connected} label={d1Connected ? t("d1Connected") : t("d1Disconnected")} />
+          <StatusPill ok={auth.twoFactorEnabled} label={auth.twoFactorEnabled ? t("twoFactorOn") : t("twoFactorOff")} />
           <button
-            type="submit"
+            type="button"
             disabled={pending}
-            className="mt-3 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            onClick={() => {
+              start(async () => {
+                await logoutAdmin();
+                router.refresh();
+              });
+            }}
+            className="btn-secondary min-h-8 px-3 py-1.5 text-xs"
           >
-            {t("setupCta")}
+            {t("logout")}
           </button>
-        </form>
+        </div>
+      </header>
+
+      {!d1Connected ? (
+        <div className="rounded-xl border border-[var(--danger-border)] bg-[var(--danger-bg)] p-4 text-sm">
+          <p className="font-medium text-[var(--text)]">{t("d1MissingTitle")}</p>
+          <p className="mt-1 leading-relaxed text-[var(--muted)]">{t("d1MissingLead")}</p>
+        </div>
       ) : null}
 
-      {!isUnlocked ? (
-        <form
-          className="rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6"
-          action={(fd) => {
-            setMessage(null);
-            start(async () => {
-              const res = await unlockAdmin(fd);
-              if (!res.ok) {
-                const err =
-                  res.error === "auth"
-                    ? t("loginFailed")
-                    : res.error === "invalid"
-                      ? t("setupInvalid")
-                      : res.error === "twoFactor"
-                        ? t("twoFactorInvalid")
-                        : t("error");
-                setMessage(err);
-                return;
-              }
-              setMessage(t("unlock"));
-              setIsUnlocked(true);
-            });
-          }}
-        >
-          <input type="hidden" name="formRenderedAt" value={formRenderedAt} />
-          <input
-            type="text"
-            name="website"
-            tabIndex={-1}
-            autoComplete="off"
-            className="hidden"
-            aria-hidden="true"
-          />
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
-            {t("unlock")}
-          </h2>
-          <input
-            name="username"
-            type="text"
-            className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
-            placeholder={t("username")}
-          />
-          <input
-            name="password"
-            type="password"
-            className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
-            placeholder={t("password")}
-          />
-          <input
-            name="totp"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={6}
-            className="mt-3 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
-            placeholder={t("twoFactorCode")}
-          />
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          [t("publishedPosts"), initialPosts.filter((post) => post.published).length],
+          [t("drafts"), initialPosts.filter((post) => !post.published && !post.scheduledFor).length],
+          [t("scheduled"), initialPosts.filter((post) => !post.published && post.scheduledFor).length],
+          [t("messages"), initialContactMessages.length],
+        ].map(([label, value]) => (
+          <article key={String(label)} className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+            <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+            <p className="mt-1.5 text-2xl font-semibold tracking-tight text-[var(--text)]">
+              {d1Connected ? value : "–"}
+            </p>
+          </article>
+        ))}
+      </section>
+
+      <div
+        role="tablist"
+        aria-label={t("title")}
+        className="flex gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {tabs.map(([id, label]) => (
           <button
-            type="submit"
-            disabled={pending}
-            className="mt-3 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            onClick={() => setActiveTab(id)}
+            className={`shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+              activeTab === id
+                ? "bg-[var(--bg)] text-[var(--text)] shadow-[var(--shadow-sm)]"
+                : "text-[var(--muted)] hover:text-[var(--text)]"
+            }`}
           >
-            {t("unlock")}
+            {label}
           </button>
-        </form>
-      ) : (
-        <>
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              [t("publishedPosts"), initialPosts.filter((post) => post.published).length],
-              [t("drafts"), initialPosts.filter((post) => !post.published && !post.scheduledFor).length],
-              ["Scheduled", initialPosts.filter((post) => post.scheduledFor).length],
-              ["Comments", 0],
-            ].map(([label, value]) => (
-              <article key={String(label)} className="rounded-lg border border-[var(--border)] bg-[var(--chip)] p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted)]">{label}</p>
-                <p className="mt-2 text-3xl font-black text-[var(--text)]">{value}</p>
-              </article>
+        ))}
+      </div>
+
+      {activeTab === "security" ? (
+        <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 sm:p-6">
+          <h2 className="text-lg font-semibold tracking-tight text-[var(--text)]">{t("securityTitle")}</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">{t("securityLead")}</p>
+          <ul className="mt-5 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+            {securityChecks.map(([label, ok]) => (
+              <li key={label} className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-[var(--text)]">
+                <span>{label}</span>
+                <StatusPill ok={ok} label={ok ? t("statusOn") : t("statusOff")} />
+              </li>
             ))}
-          </section>
-          <section className="rounded-lg border border-[var(--border)] bg-[var(--chip)] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
-                WordPress-style CMS map
-              </h2>
+          </ul>
+
+          <div className="mt-6 rounded-xl border border-[var(--border)] p-4 sm:p-5">
+            <h3 className="text-sm font-semibold text-[var(--text)]">{t("twoFactorTitle")}</h3>
+            <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
+              {auth.twoFactorEnabled ? `${t("twoFactorEnabled")} ${t("twoFactorDisableHint")}` : t("twoFactorDisabled")}
+            </p>
+            {!auth.twoFactorEnabled && !twoFactorDraft ? (
               <button
                 type="button"
                 disabled={pending}
                 onClick={() => {
-                  setMessage(null);
                   start(async () => {
-                    const res = await syncSitePostsToAdmin();
-                    setMessage(res.ok ? t("sitePostsSynced") : t("error"));
-                    if (res.ok) router.refresh();
+                    const res = await createTwoFactorSecret();
+                    if (res.ok) setTwoFactorDraft({ secret: res.secret, otpauthUri: res.otpauthUri });
+                    else setMessage(t("error"));
                   });
                 }}
-                className="rounded-lg bg-[var(--accent-2)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                className="btn-secondary mt-4 min-h-9 px-3.5 py-1.5 text-sm"
               >
-                {t("syncSitePosts")}
+                {t("twoFactorGenerate")}
               </button>
-            </div>
-            <div className="mt-3 grid gap-2 text-sm text-[var(--muted)] sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                "Posts: draft, published, scheduled, archived",
-                "Pages: about, contact, privacy, cookies, terms",
-                "Taxonomy: parent categories and tags",
-                "Media: WebP/AVIF-ready metadata model",
-                "SEO: sitemap, robots, canonical, schema, redirects",
-                "Users: admin, editor, author roles",
-                "Comments: approve, reject, spam, reply",
-                "Analytics: GA4, Search Console fields",
-              ].map((item) => (
-                <p key={item} className="rounded-md border border-[var(--border)] bg-[var(--bg)] p-3">{item}</p>
-              ))}
-            </div>
-          </section>
-          <div className="min-w-0 overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-2 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex w-max min-w-0 flex-nowrap gap-2 sm:w-full sm:flex-wrap">
-              {[
-                ["editor", t("tabEditor")],
-                ["posts", t("tabPosts")],
-                ["automation", t("tabAutomation")],
-                ["contact", t("tabContact")],
-                ["consulting", t("tabConsulting")],
-                ["settings", t("tabSettings")],
-              ].map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() =>
-                    setActiveTab(id as "editor" | "posts" | "automation" | "contact" | "consulting" | "settings")
-                  }
-                  className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold ${
-                    activeTab === id
-                      ? "bg-[var(--accent-2)] text-white"
-                      : "bg-[var(--bg)] text-[var(--text)]"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            ) : null}
+            {!auth.twoFactorEnabled && twoFactorDraft ? (
+              <div className="mt-4 space-y-4">
+                <ol className="list-decimal space-y-1 pl-5 text-sm text-[var(--muted)]">
+                  <li>{t("twoFactorStep1")}</li>
+                  <li>{t("twoFactorStep2")}</li>
+                  <li>{t("twoFactorStep3")}</li>
+                </ol>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="min-w-0 flex-1 break-all rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 font-mono text-xs text-[var(--text)]">
+                    ADMIN_TOTP_SECRET={twoFactorDraft.secret}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard
+                        ?.writeText(`ADMIN_TOTP_SECRET=${twoFactorDraft.secret}`)
+                        .then(() => setMessage(t("copied")));
+                    }}
+                    className="btn-secondary min-h-8 px-3 py-1.5 text-xs"
+                  >
+                    {t("copy")}
+                  </button>
+                  <a href={twoFactorDraft.otpauthUri} className="btn-secondary min-h-8 px-3 py-1.5 text-xs">
+                    {t("twoFactorOpen")}
+                  </a>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    value={twoFactorTestCode}
+                    onChange={(event) => setTwoFactorTestCode(event.target.value)}
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                    placeholder={t("twoFactorCode")}
+                    aria-label={t("twoFactorCode")}
+                    className="w-40 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 font-mono text-sm tracking-[0.2em] text-[var(--text)]"
+                  />
+                  <button
+                    type="button"
+                    disabled={pending || twoFactorTestCode.length !== 6}
+                    onClick={() => {
+                      start(async () => {
+                        const res = await checkTwoFactorCode(twoFactorDraft.secret, twoFactorTestCode);
+                        setMessage(res.ok ? t("twoFactorTestOk") : t("twoFactorInvalid"));
+                      });
+                    }}
+                    className="btn-primary min-h-9 px-3.5 py-1.5"
+                  >
+                    {t("twoFactorTest")}
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
+          <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">{t("signOutAllHint")}</p>
+        </section>
+      ) : null}
+
+      {d1Connected ? (
+        <>
           <form
-            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 sm:p-6 ${
               activeTab === "settings" ? "" : "hidden"
             }`}
             action={(fd) => {
@@ -481,117 +487,6 @@ export function AdminPanel({
               {t("marketingTitle")}
             </h2>
             <p className="mt-2 text-sm text-[var(--muted)]">{t("marketingLead")}</p>
-            <section className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-[var(--text)]">{t("twoFactorTitle")}</h3>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    {twoFactorEnabled ? t("twoFactorEnabled") : t("twoFactorDisabled")}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={pending || twoFactorEnabled}
-                  onClick={() => {
-                    setMessage(null);
-                    start(async () => {
-                      const res = await createAdminTwoFactorSetup();
-                      if (!res.ok) {
-                        setMessage(t("error"));
-                        return;
-                      }
-                      setTwoFactorSetup({
-                        manualKey: res.manualKey,
-                        otpauthUri: res.otpauthUri,
-                      });
-                      setMessage(t("twoFactorScan"));
-                    });
-                  }}
-                  className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text)] disabled:opacity-50"
-                >
-                  {twoFactorEnabled ? t("twoFactorActive") : t("twoFactorStart")}
-                </button>
-              </div>
-              {twoFactorSetup ? (
-                <div className="mt-3 space-y-3">
-                  <a
-                    href={twoFactorSetup.otpauthUri}
-                    className="inline-flex rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text)]"
-                  >
-                    {t("twoFactorOpen")}
-                  </a>
-                  <p className="break-all rounded-md border border-[var(--border)] p-3 font-mono text-xs text-[var(--muted)]">
-                    {twoFactorSetup.manualKey}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      name="totp"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      placeholder={t("twoFactorCode")}
-                      className="min-w-[12rem] rounded-lg border border-[var(--border)] bg-[var(--chip)] px-3 py-2 text-sm text-[var(--text)]"
-                    />
-                    <button
-                      type="button"
-                      disabled={pending}
-                      onClick={(event) => {
-                        const form = event.currentTarget.closest("form");
-                        if (!form) return;
-                        const fd = new FormData(form);
-                        setMessage(null);
-                        start(async () => {
-                          const res = await enableAdminTwoFactor(fd);
-                          setMessage(res.ok ? t("twoFactorEnabled") : t("twoFactorInvalid"));
-                          if (res.ok) {
-                            setTwoFactorEnabled(true);
-                            setTwoFactorSetup(null);
-                          }
-                        });
-                      }}
-                      className="rounded-lg bg-[var(--accent-2)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                    >
-                      {t("twoFactorEnable")}
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-              {twoFactorEnabled ? (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <input
-                    name="disableTotp"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
-                    placeholder={t("twoFactorCode")}
-                    className="min-w-[12rem] rounded-lg border border-[var(--border)] bg-[var(--chip)] px-3 py-2 text-sm text-[var(--text)]"
-                  />
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={(event) => {
-                      const form = event.currentTarget.closest("form");
-                      if (!form) return;
-                      const fd = new FormData();
-                      const input = form.elements.namedItem("disableTotp");
-                      if (input instanceof HTMLInputElement) fd.set("totp", input.value);
-                      setMessage(null);
-                      start(async () => {
-                        const res = await disableAdminTwoFactor(fd);
-                        setMessage(res.ok ? t("settingsSaved") : t("twoFactorInvalid"));
-                        if (res.ok) {
-                          setTwoFactorEnabled(false);
-                          setTwoFactorSetup(null);
-                        }
-                      });
-                    }}
-                    className="rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-3 py-2 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
-                  >
-                    {t("twoFactorDisable")}
-                  </button>
-                </div>
-              ) : null}
-            </section>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-[var(--muted)]">
                 {t("analyticsId")}
@@ -637,14 +532,14 @@ export function AdminPanel({
             <button
               type="submit"
               disabled={pending}
-              className="mt-4 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="mt-4 btn-primary"
             >
               {t("saveSettings")}
             </button>
           </form>
 
           <section
-            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 sm:p-6 ${
               activeTab === "automation" ? "" : "hidden"
             }`}
           >
@@ -655,6 +550,22 @@ export function AdminPanel({
                 </h2>
                 <p className="mt-1 text-sm text-[var(--muted)]">{t("cronLead")}</p>
               </div>
+              <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  setMessage(null);
+                  start(async () => {
+                    const res = await syncSitePostsToAdmin();
+                    setMessage(res.ok ? t("sitePostsSynced") : t("error"));
+                    if (res.ok) router.refresh();
+                  });
+                }}
+                className="btn-secondary"
+              >
+                {t("syncSitePosts")}
+              </button>
               <button
                 type="button"
                 disabled={pending}
@@ -666,10 +577,11 @@ export function AdminPanel({
                     if (res.ok) router.refresh();
                   });
                 }}
-                className="rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="btn-primary"
               >
                 {t("cronRunNow")}
               </button>
+              </div>
             </div>
             <ul className="mt-4 space-y-2 text-sm text-[var(--muted)]">
               {initialCronRuns.length === 0 ? (
@@ -681,7 +593,7 @@ export function AdminPanel({
                     <p className="mt-1">
                       {run.ok ? "ok" : "fail"} · {run.source} · published: {run.publishedCount}
                     </p>
-                    {run.error ? <p className="mt-1 text-xs text-[#ff9a9a]">{run.error}</p> : null}
+                    {run.error ? <p className="mt-1 text-xs text-[var(--danger)]">{run.error}</p> : null}
                   </li>
                 ))
               )}
@@ -692,7 +604,7 @@ export function AdminPanel({
             className={`space-y-6 ${activeTab === "contact" ? "" : "hidden"}`}
           >
             <form
-              className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-4 sm:p-6"
+              className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 sm:p-6"
               action={(fd) => {
                 setMessage(null);
                 start(async () => {
@@ -791,13 +703,13 @@ export function AdminPanel({
               <button
                 type="submit"
                 disabled={pending}
-                className="mt-4 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="mt-4 btn-primary"
               >
                 {t("saveSmtp")}
               </button>
             </form>
 
-            <section className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-4 sm:p-6">
+            <section className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 sm:p-6">
               <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
                 {t("contactInboxTitle")}
               </h2>
@@ -816,7 +728,7 @@ export function AdminPanel({
                           <p className="break-words font-medium text-[var(--text)]">
                             {m.name} ·{" "}
                             <a
-                              className="break-all text-[var(--accent)]"
+                              className="break-all text-[var(--accent-ink)]"
                               href={`mailto:${m.email}`}
                             >
                               {m.email}
@@ -839,7 +751,7 @@ export function AdminPanel({
                               if (res.ok) router.refresh();
                             });
                           }}
-                          className="shrink-0 rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-2 py-1 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
+                          className="shrink-0 btn-danger"
                         >
                           {t("delete")}
                         </button>
@@ -856,7 +768,7 @@ export function AdminPanel({
 
           <div className={`space-y-6 ${activeTab === "consulting" ? "" : "hidden"}`}>
             <form
-              className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-4 sm:p-6"
+              className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 sm:p-6"
               action={(fd) => {
                 setMessage(null);
                 start(async () => {
@@ -947,13 +859,13 @@ export function AdminPanel({
               <button
                 type="submit"
                 disabled={pending}
-                className="mt-4 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="mt-4 btn-primary"
               >
                 {t("saveConsulting")}
               </button>
             </form>
 
-            <section className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-4 sm:p-6">
+            <section className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 sm:p-6">
               <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
                 {t("consultingBookingsTitle")}
               </h2>
@@ -971,7 +883,7 @@ export function AdminPanel({
                         <div className="min-w-0 flex-1">
                           <p className="break-words font-medium text-[var(--text)]">
                             {b.name} ·{" "}
-                            <a className="break-all text-[var(--accent)]" href={`mailto:${b.email}`}>
+                            <a className="break-all text-[var(--accent-ink)]" href={`mailto:${b.email}`}>
                               {b.email}
                             </a>
                           </p>
@@ -988,7 +900,7 @@ export function AdminPanel({
                                   ? "text-[var(--accent-2)]"
                                   : b.status === "pending"
                                     ? "text-[var(--muted)]"
-                                    : "text-[#ff9a9a]"
+                                    : "text-[var(--danger)]"
                               }
                             >
                               {b.status}
@@ -1007,7 +919,7 @@ export function AdminPanel({
                               if (res.ok) router.refresh();
                             });
                           }}
-                          className="shrink-0 rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-2 py-1 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
+                          className="shrink-0 btn-danger"
                         >
                           {t("delete")}
                         </button>
@@ -1025,7 +937,7 @@ export function AdminPanel({
           </div>
 
           <section
-            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 sm:p-6 ${
               activeTab === "editor" ? "" : "hidden"
             }`}
           >
@@ -1113,7 +1025,7 @@ export function AdminPanel({
               <button
                 type="button"
                 onClick={applyBlocksToMarkdown}
-                className="rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-[#041016]"
+                className="btn-primary min-h-8 px-3 py-1.5 text-xs"
               >
                 {t("builderApply")}
               </button>
@@ -1143,7 +1055,7 @@ export function AdminPanel({
           </section>
 
           <form
-            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 sm:p-6 ${
               activeTab === "editor" ? "" : "hidden"
             }`}
             action={(fd) => {
@@ -1164,7 +1076,7 @@ export function AdminPanel({
             }}
           >
             <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
-              {t("title")}
+              {editingTarget ? t("editPost") : t("newPost")}
             </h2>
             <div className="mt-4 grid gap-3">
               <input
@@ -1225,7 +1137,7 @@ export function AdminPanel({
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#041016] disabled:opacity-50"
+                className="btn-primary"
               >
                 {editingTarget ? t("updatePost") : t("save")}
               </button>
@@ -1242,7 +1154,7 @@ export function AdminPanel({
           </form>
 
           <form
-            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 sm:p-6 ${
               activeTab === "automation" ? "" : "hidden"
             }`}
             action={(fd) => {
@@ -1303,7 +1215,7 @@ export function AdminPanel({
             <button
               type="submit"
               disabled={pending}
-              className="mt-4 rounded-lg bg-[var(--accent-2)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="mt-4 btn-primary"
             >
               {t("bulkGenerate")}
             </button>
@@ -1319,7 +1231,7 @@ export function AdminPanel({
           </form>
 
           <section
-            className={`rounded-2xl border border-[var(--border)] bg-[var(--chip)] p-6 ${
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 sm:p-6 ${
               activeTab === "posts" ? "" : "hidden"
             }`}
           >
@@ -1334,14 +1246,14 @@ export function AdminPanel({
                   <button
                     type="button"
                     onClick={() => setSelectedSlugs(groupedPosts.map((g) => g.slug))}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text)]"
+                    className="btn-secondary min-h-8 px-3 py-1.5 text-xs"
                   >
                     {t("selectAll")}
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedSlugs([])}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text)]"
+                    className="btn-secondary min-h-8 px-3 py-1.5 text-xs"
                   >
                     {t("clearSelection")}
                   </button>
@@ -1360,7 +1272,7 @@ export function AdminPanel({
                         }
                       });
                     }}
-                    className="rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-3 py-1.5 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
+                    className="btn-danger"
                   >
                     {t("deleteSelected")}
                   </button>
@@ -1402,7 +1314,7 @@ export function AdminPanel({
                       </span>
                       <button
                         type="button"
-                        className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text)]"
+                        className="btn-secondary min-h-8 px-3 py-1.5 text-xs"
                         onClick={() => loadPostToEditor(primary)}
                       >
                         {t("editPost")}
@@ -1419,7 +1331,7 @@ export function AdminPanel({
                               if (res.ok) router.refresh();
                             });
                           }}
-                          className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text)] disabled:opacity-50"
+                          className="btn-secondary min-h-8 px-3 py-1.5 text-xs"
                         >
                           {t("publishNow")}
                         </button>
@@ -1436,7 +1348,7 @@ export function AdminPanel({
                             if (res.ok) router.refresh();
                           });
                         }}
-                        className="rounded-lg border border-[#ff8a8a] bg-[#2b1111] px-3 py-1.5 text-xs font-semibold text-[#ffb4b4] disabled:opacity-50"
+                        className="btn-danger"
                       >
                         {t("delete")}
                       </button>
@@ -1448,9 +1360,21 @@ export function AdminPanel({
             )}
           </section>
         </>
-      )}
+      ) : activeTab !== "security" ? (
+        <p className="rounded-2xl border border-dashed border-[var(--border-strong)] p-8 text-center text-sm text-[var(--muted)]">
+          {t("d1RequiredSection")}
+        </p>
+      ) : null}
 
-      {message ? <p className="text-sm text-[var(--muted)]">{message}</p> : null}
+      {message ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--text)] shadow-[var(--shadow-md)]"
+        >
+          {message}
+        </div>
+      ) : null}
     </div>
   );
 }

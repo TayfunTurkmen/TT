@@ -1,6 +1,4 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
 
 type D1Stmt = {
   bind: (...values: unknown[]) => {
@@ -34,20 +32,11 @@ export type DbPost = {
   updatedAt: string;
 };
 
-type AdminUserRow = {
-  username: string;
-  password_hash: string;
-  salt: string;
-  totp_secret: string | null;
-  totp_enabled: number | null;
-};
-
 type SiteSettingRow = {
   setting_key: string;
   setting_value: string;
 };
 
-const scryptAsync = promisify(scrypt);
 let schemaReady = false;
 let schemaReadyPromise: Promise<boolean> | null = null;
 
@@ -67,12 +56,6 @@ export type CronRun = {
 export type AdminSecuritySettings = {
   turnstileSiteKey: string | null;
   turnstileSecretKey: string | null;
-};
-
-export type AdminTwoFactorStatus = {
-  enabled: boolean;
-  hasSecret: boolean;
-  username: string | null;
 };
 
 export type AdminAiSettings = {
@@ -421,161 +404,6 @@ export async function listPublishedBlogPosts(locale: string): Promise<DbPost[]> 
     return rows.results.map(mapDbPost);
   } catch {
     return [];
-  }
-}
-
-async function derivePasswordHash(password: string, saltHex: string): Promise<string> {
-  const derived = (await scryptAsync(password, Buffer.from(saltHex, "hex"), 64)) as Buffer;
-  return derived.toString("hex");
-}
-
-export async function hasAdminUser(): Promise<boolean> {
-  const db = getDb();
-  if (!db) return false;
-  if (!(await ensureD1Schema())) return false;
-  try {
-    const row = await db
-      .prepare("SELECT username FROM admin_users LIMIT 1")
-      .bind()
-      .first<{ username: string }>();
-    return Boolean(row?.username);
-  } catch {
-    return false;
-  }
-}
-
-export async function registerInitialAdmin(
-  username: string,
-  password: string,
-): Promise<"ok" | "exists" | "invalid" | "db"> {
-  const db = getDb();
-  if (!db) return "db";
-  if (!(await ensureD1Schema())) return "db";
-
-  const cleanUsername = username.trim().toLowerCase();
-  if (cleanUsername.length < 3 || password.length < 8) return "invalid";
-
-  const exists = await hasAdminUser();
-  if (exists) return "exists";
-
-  const salt = randomBytes(16).toString("hex");
-  const passwordHash = await derivePasswordHash(password, salt);
-  try {
-    await db
-      .prepare("INSERT INTO admin_users (username, password_hash, salt) VALUES (?, ?, ?)")
-      .bind(cleanUsername, passwordHash, salt)
-      .run();
-    return "ok";
-  } catch {
-    return "db";
-  }
-}
-
-export async function verifyAdminUser(
-  username: string,
-  password: string,
-): Promise<{ ok: boolean; username: string | null; twoFactorEnabled: boolean; totpSecret: string | null }> {
-  const db = getDb();
-  if (!db) return { ok: false, username: null, twoFactorEnabled: false, totpSecret: null };
-  if (!(await ensureD1Schema())) return { ok: false, username: null, twoFactorEnabled: false, totpSecret: null };
-
-  const cleanUsername = username.trim().toLowerCase();
-  try {
-    const row = await db
-      .prepare(
-        "SELECT username, password_hash, salt, totp_secret, totp_enabled FROM admin_users WHERE username = ? LIMIT 1",
-      )
-      .bind(cleanUsername)
-      .first<AdminUserRow>();
-
-    if (!row) return { ok: false, username: null, twoFactorEnabled: false, totpSecret: null };
-
-    const candidate = await derivePasswordHash(password, row.salt);
-    const ok = timingSafeEqual(
-      Buffer.from(candidate, "hex"),
-      Buffer.from(row.password_hash, "hex"),
-    );
-    return {
-      ok,
-      username: ok ? row.username : null,
-      twoFactorEnabled: ok ? row.totp_enabled === 1 : false,
-      totpSecret: ok ? row.totp_secret : null,
-    };
-  } catch {
-    return { ok: false, username: null, twoFactorEnabled: false, totpSecret: null };
-  }
-}
-
-export async function getAdminTwoFactorStatus(): Promise<AdminTwoFactorStatus> {
-  const db = getDb();
-  if (!db) return { enabled: false, hasSecret: false, username: null };
-  if (!(await ensureD1Schema())) return { enabled: false, hasSecret: false, username: null };
-  try {
-    const row = await db
-      .prepare("SELECT username, totp_secret, totp_enabled FROM admin_users LIMIT 1")
-      .bind()
-      .first<{ username: string; totp_secret: string | null; totp_enabled: number | null }>();
-    return {
-      enabled: row?.totp_enabled === 1,
-      hasSecret: Boolean(row?.totp_secret),
-      username: row?.username ?? null,
-    };
-  } catch {
-    return { enabled: false, hasSecret: false, username: null };
-  }
-}
-
-export async function saveAdminTotpSecret(secret: string): Promise<string | null> {
-  const db = getDb();
-  if (!db) return null;
-  if (!(await ensureD1Schema())) return null;
-  try {
-    const row = await db
-      .prepare("SELECT username FROM admin_users LIMIT 1")
-      .bind()
-      .first<{ username: string }>();
-    if (!row?.username) return null;
-    await db
-      .prepare("UPDATE admin_users SET totp_secret = ?, totp_enabled = 0 WHERE username = ?")
-      .bind(secret, row.username)
-      .run();
-    return row.username;
-  } catch {
-    return null;
-  }
-}
-
-export async function getAdminTotpSecret(): Promise<string | null> {
-  const db = getDb();
-  if (!db) return null;
-  if (!(await ensureD1Schema())) return null;
-  try {
-    const row = await db
-      .prepare("SELECT totp_secret FROM admin_users LIMIT 1")
-      .bind()
-      .first<{ totp_secret: string | null }>();
-    return row?.totp_secret ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export async function setAdminTwoFactorEnabled(enabled: boolean): Promise<boolean> {
-  const db = getDb();
-  if (!db) return false;
-  if (!(await ensureD1Schema())) return false;
-  try {
-    await db
-      .prepare(
-        enabled
-          ? "UPDATE admin_users SET totp_enabled = 1 WHERE totp_secret IS NOT NULL"
-          : "UPDATE admin_users SET totp_enabled = 0, totp_secret = NULL",
-      )
-      .bind()
-      .run();
-    return true;
-  } catch {
-    return false;
   }
 }
 

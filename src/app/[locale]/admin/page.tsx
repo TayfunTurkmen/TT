@@ -1,18 +1,16 @@
 import { AdminPanel } from "@/components/AdminPanel";
+import { getAdminAuthStatus, getAdminSession } from "@/lib/admin-auth";
 import {
   getAdminAiSettings,
   getAdminConsultingSettings,
   getAdminSmtpSettings,
-  getAdminTwoFactorStatus,
   getPublicSiteSettings,
-  hasAdminUser,
   listAdminBlogPosts,
   listConsultingBookings,
   listContactMessages,
   listCronRuns,
   pingD1,
 } from "@/lib/d1";
-import { cookies } from "next/headers";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { Metadata } from "next";
 
@@ -31,101 +29,95 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function AdminPage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const t = await getTranslations({ locale, namespace: "admin" });
-  const enabled = Boolean(await pingD1());
-  const adminUserExists = enabled ? await hasAdminUser() : false;
-  const jar = await cookies();
-  const unlocked = jar.get("admin_ok")?.value === "1";
-  const posts = unlocked ? await listAdminBlogPosts(100) : [];
-  const cronRuns = unlocked ? await listCronRuns(15) : [];
-  const contactMessages = unlocked ? await listContactMessages(80) : [];
-  const consultingBookings = unlocked ? await listConsultingBookings(80) : [];
-  const marketing = enabled ? await getPublicSiteSettings() : null;
-  const consulting = unlocked && enabled ? await getAdminConsultingSettings() : null;
-  const ai = enabled ? await getAdminAiSettings() : null;
-  const smtp = unlocked && enabled ? await getAdminSmtpSettings() : null;
-  const twoFactor = unlocked && enabled
-    ? await getAdminTwoFactorStatus()
-    : { enabled: false, hasSecret: false, username: null };
+  const auth = getAdminAuthStatus();
+  const session = await getAdminSession();
+  // Nothing from the database is read until the visitor has a valid session.
+  const d1Connected = session ? Boolean(await pingD1()) : false;
+  const load = Boolean(session) && d1Connected;
+
+  const [posts, cronRuns, contactMessages, consultingBookings, marketing, consulting, ai, smtp] = load
+    ? await Promise.all([
+        listAdminBlogPosts(100),
+        listCronRuns(15),
+        listContactMessages(80),
+        listConsultingBookings(80),
+        getPublicSiteSettings(),
+        getAdminConsultingSettings(),
+        getAdminAiSettings(),
+        getAdminSmtpSettings(),
+      ])
+    : [[], [], [], [], null, null, null, null];
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
-      <h1 className="font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight text-[var(--text)]">
-        {t("title")}
-      </h1>
-      <p className="mt-3 text-[var(--muted)]">{t("lead")}</p>
-      <div className="mt-8">
-        <AdminPanel
-          enabled={enabled}
-          hasAdminUser={adminUserExists}
-          unlocked={unlocked}
-          initialPosts={posts.map((p) => ({
-            slug: p.slug,
-            locale: p.locale,
-            title: p.title,
-            excerpt: p.excerpt,
-            content: p.content,
-            tags: p.tags,
-            published: p.published,
-            updatedAt: p.updatedAt,
-            featuredImage: p.featuredImage,
-            scheduledFor: p.scheduledFor,
-          }))}
-          initialCronRuns={cronRuns}
-          initialSettings={{
-            analyticsMeasurementId: marketing?.analyticsMeasurementId ?? "",
-            aiApiBaseUrl: ai?.aiApiBaseUrl ?? "",
-            aiModel: ai?.aiModel ?? "",
-            hasAiApiKey: Boolean(ai?.aiApiKey),
-          }}
-          initialContactMessages={contactMessages.map((m) => ({
-            id: m.id,
-            name: m.name,
-            email: m.email,
-            body: m.body,
-            locale: m.locale,
-            ip: m.ip,
-            createdAt: m.createdAt,
-          }))}
-          initialConsulting={{
-            consultingPrice30: consulting?.consultingPrice30 ?? 7500,
-            consultingPrice60: consulting?.consultingPrice60 ?? 12000,
-            consultingCurrency: consulting?.consultingCurrency ?? "usd",
-            consultingEnabled: Boolean(consulting?.consultingEnabled),
-            hasStripeSecretKey: Boolean(consulting?.stripeSecretKey),
-            hasStripeWebhookSecret: Boolean(consulting?.stripeWebhookSecret),
-          }}
-          initialConsultingBookings={consultingBookings.map((b) => ({
-            id: b.id,
-            name: b.name,
-            email: b.email,
-            package: b.package,
-            preferredDate: b.preferredDate,
-            preferredTime: b.preferredTime,
-            topic: b.topic,
-            locale: b.locale,
-            status: b.status,
-            amountCents: b.amountCents,
-            currency: b.currency,
-            createdAt: b.createdAt,
-            paidAt: b.paidAt,
-          }))}
-          initialSmtp={{
-            hasBrevoApiKey: Boolean(smtp?.brevoApiKey),
-            smtpHost: smtp?.smtpHost ?? "",
-            smtpPort: smtp?.smtpPort ?? "587",
-            smtpUser: smtp?.smtpUser ?? "",
-            smtpFrom: smtp?.smtpFrom ?? "",
-            contactNotifyEmail: smtp?.contactNotifyEmail ?? "",
-            smtpSecure: Boolean(smtp?.smtpSecure),
-            hasSmtpPassword: Boolean(smtp?.smtpPass),
-          }}
-          initialTwoFactor={{
-            enabled: twoFactor.enabled,
-            hasSecret: twoFactor.hasSecret,
-          }}
-        />
-      </div>
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
+      <AdminPanel
+        // Remount on sign-in/sign-out so client state (active tab, drafts) starts fresh.
+        key={session ? "signed-in" : "signed-out"}
+        auth={auth}
+        session={session}
+        d1Connected={d1Connected}
+        initialPosts={posts.map((p) => ({
+          slug: p.slug,
+          locale: p.locale,
+          title: p.title,
+          excerpt: p.excerpt,
+          content: p.content,
+          tags: p.tags,
+          published: p.published,
+          updatedAt: p.updatedAt,
+          featuredImage: p.featuredImage,
+          scheduledFor: p.scheduledFor,
+        }))}
+        initialCronRuns={cronRuns}
+        initialSettings={{
+          analyticsMeasurementId: marketing?.analyticsMeasurementId ?? "",
+          aiApiBaseUrl: ai?.aiApiBaseUrl ?? "",
+          aiModel: ai?.aiModel ?? "",
+          hasAiApiKey: Boolean(ai?.aiApiKey),
+        }}
+        initialContactMessages={contactMessages.map((m) => ({
+          id: m.id,
+          name: m.name,
+          email: m.email,
+          body: m.body,
+          locale: m.locale,
+          ip: m.ip,
+          createdAt: m.createdAt,
+        }))}
+        initialConsulting={{
+          consultingPrice30: consulting?.consultingPrice30 ?? 7500,
+          consultingPrice60: consulting?.consultingPrice60 ?? 12000,
+          consultingCurrency: consulting?.consultingCurrency ?? "usd",
+          consultingEnabled: Boolean(consulting?.consultingEnabled),
+          hasStripeSecretKey: Boolean(consulting?.stripeSecretKey),
+          hasStripeWebhookSecret: Boolean(consulting?.stripeWebhookSecret),
+        }}
+        initialConsultingBookings={consultingBookings.map((b) => ({
+          id: b.id,
+          name: b.name,
+          email: b.email,
+          package: b.package,
+          preferredDate: b.preferredDate,
+          preferredTime: b.preferredTime,
+          topic: b.topic,
+          locale: b.locale,
+          status: b.status,
+          amountCents: b.amountCents,
+          currency: b.currency,
+          createdAt: b.createdAt,
+          paidAt: b.paidAt,
+        }))}
+        initialSmtp={{
+          hasBrevoApiKey: Boolean(smtp?.brevoApiKey),
+          smtpHost: smtp?.smtpHost ?? "",
+          smtpPort: smtp?.smtpPort ?? "587",
+          smtpUser: smtp?.smtpUser ?? "",
+          smtpFrom: smtp?.smtpFrom ?? "",
+          contactNotifyEmail: smtp?.contactNotifyEmail ?? "",
+          smtpSecure: Boolean(smtp?.smtpSecure),
+          hasSmtpPassword: Boolean(smtp?.smtpPass),
+        }}
+      />
     </div>
   );
 }

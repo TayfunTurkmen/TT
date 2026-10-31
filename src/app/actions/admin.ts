@@ -6,34 +6,24 @@ import { syncDemoSitePostsToAdminDb } from "@/lib/site-post-sync";
 import { extractKeywords } from "@/lib/web-fetch";
 import {
   autoPublishScheduledPosts,
-  clearAdminLoginFailures,
   deleteBlogPostsBySlug,
   deleteBlogPost,
   deleteContactMessage,
   deleteConsultingBooking,
   getAdminBlogPost,
-  getAdminTotpSecret,
-  getAdminTwoFactorStatus,
-  isAdminLoginBlocked,
   logCronRun,
   publishBlogPostsBySlug,
-  registerAdminLoginFailure,
-  registerInitialAdmin,
   saveAdminAiSettings,
   saveAdminConsultingSettings,
   saveAdminSmtpSettings,
-  saveAdminTotpSecret,
   savePublicSiteSettings,
-  setAdminTwoFactorEnabled,
   upsertBlogPost,
-  verifyAdminUser,
 } from "@/lib/d1";
+import { attemptAdminLogin, endAdminSession, getClientIp, isAdminAuthenticated } from "@/lib/admin-auth";
 import { isLikelyBotSubmission } from "@/lib/form-guard";
 import { buildTotpUri, generateTotpSecret, verifyTotpCode } from "@/lib/totp";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-
-const COOKIE = "admin_ok";
 
 export type AdminResult =
   | {
@@ -41,7 +31,6 @@ export type AdminResult =
       message:
         | "saved"
         | "unlocked"
-        | "registered"
         | "bulkSaved"
         | "settingsSaved"
         | "publishedNow"
@@ -50,140 +39,50 @@ export type AdminResult =
         | "bulkDeleted"
         | "synced";
     }
-  | { ok: false; error: "auth" | "locked" | "invalid" | "db" | "exists" | "twoFactor" };
+  | { ok: false; error: "auth" | "blocked" | "config" | "locked" | "invalid" | "db" | "twoFactor" };
 
 export type AdminTwoFactorSetupResult =
-  | { ok: true; manualKey: string; otpauthUri: string }
-  | { ok: false; error: "locked" | "db" };
-
-function getClientIpFromHeaders(
-  h: Headers,
-): string {
-  const cf = h.get("cf-connecting-ip");
-  if (cf) return cf;
-  const xff = h.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]?.trim() || "unknown";
-  return "unknown";
-}
-
-async function getLoginAttemptKeys(username: string, ip: string): Promise<string[]> {
-  return [`ip:${ip}`, `user:${username}|ip:${ip}`];
-}
-
-async function isAnyLoginKeyBlocked(keys: string[]): Promise<boolean> {
-  for (const key of keys) {
-    if ((await isAdminLoginBlocked(key)) > 0) return true;
-  }
-  return false;
-}
-
-async function registerLoginFailure(keys: string[]) {
-  for (const key of keys) await registerAdminLoginFailure(key);
-}
-
-async function clearLoginFailures(keys: string[]) {
-  for (const key of keys) await clearAdminLoginFailures(key);
-}
-
-async function setAdminSessionCookie() {
-  const jar = await cookies();
-  jar.set(COOKIE, "1", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/",
-    maxAge: 60 * 60 * 8,
-  });
-}
+  | { ok: true; secret: string; otpauthUri: string }
+  | { ok: false; error: "locked" };
 
 export async function unlockAdmin(formData: FormData): Promise<AdminResult> {
-  const h = await headers();
-  const ip = getClientIpFromHeaders(h);
-  const username = String(formData.get("username") ?? "").trim().toLowerCase();
+  const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
-  const twoFactorCode = String(formData.get("totp") ?? "").trim();
-  if (!username || !password) return { ok: false, error: "invalid" };
-  const attemptKeys = await getLoginAttemptKeys(username, ip);
-  if (await isAnyLoginKeyBlocked(attemptKeys)) return { ok: false, error: "auth" };
-  if (isLikelyBotSubmission(formData)) {
-    await registerLoginFailure(attemptKeys);
-    return { ok: false, error: "auth" };
-  }
-  const login = await verifyAdminUser(username, password);
-  if (!login.ok) {
-    await registerLoginFailure(attemptKeys);
-    return { ok: false, error: "auth" };
-  }
-  if (login.twoFactorEnabled && !verifyTotpCode(login.totpSecret, twoFactorCode)) {
-    await registerLoginFailure(attemptKeys);
-    return { ok: false, error: "twoFactor" };
-  }
-  await clearLoginFailures(attemptKeys);
-  await setAdminSessionCookie();
+  if (!username.trim() || !password) return { ok: false, error: "invalid" };
+  if (isLikelyBotSubmission(formData)) return { ok: false, error: "auth" };
 
+  const ip = getClientIp(await headers());
+  const result = await attemptAdminLogin({
+    username,
+    password,
+    totp: String(formData.get("totp") ?? ""),
+    ip,
+  });
+  if (result === "config") return { ok: false, error: "config" };
+  if (result === "blocked") return { ok: false, error: "blocked" };
+  if (result !== "ok") return { ok: false, error: "auth" };
   return { ok: true, message: "unlocked" };
 }
 
-export async function setupInitialAdmin(formData: FormData): Promise<AdminResult> {
-  const h = await headers();
-  const ip = getClientIpFromHeaders(h);
-  const attemptKeys = [`setup:${ip}`];
-  if (await isAnyLoginKeyBlocked(attemptKeys)) return { ok: false, error: "auth" };
-  if (isLikelyBotSubmission(formData)) {
-    await registerLoginFailure(attemptKeys);
-    return { ok: false, error: "auth" };
-  }
-
-  const username = String(formData.get("username") ?? "");
-  const password = String(formData.get("password") ?? "");
-  const result = await registerInitialAdmin(username, password);
-
-  if (result === "db") return { ok: false, error: "db" };
-  if (result === "invalid") return { ok: false, error: "invalid" };
-  if (result === "exists") return { ok: false, error: "exists" };
-
-  await clearLoginFailures(attemptKeys);
-  await setAdminSessionCookie();
-
-  return { ok: true, message: "registered" };
+export async function logoutAdmin(): Promise<void> {
+  await endAdminSession();
 }
 
-export async function createAdminTwoFactorSetup(): Promise<AdminTwoFactorSetupResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
-
+/**
+ * Generates a fresh 2FA secret for the admin to copy into ADMIN_TOTP_SECRET.
+ * Nothing is stored server side; the secret only takes effect once it is set in the environment.
+ */
+export async function createTwoFactorSecret(): Promise<AdminTwoFactorSetupResult> {
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
   const secret = generateTotpSecret();
-  const username = await saveAdminTotpSecret(secret);
-  if (!username) return { ok: false, error: "db" };
-  return {
-    ok: true,
-    manualKey: secret,
-    otpauthUri: buildTotpUri({ secret, username }),
-  };
+  return { ok: true, secret, otpauthUri: buildTotpUri({ secret, username: "admin" }) };
 }
 
-export async function enableAdminTwoFactor(formData: FormData): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
-
-  const code = String(formData.get("totp") ?? "").trim();
-  const secret = await getAdminTotpSecret();
-  if (!verifyTotpCode(secret, code)) return { ok: false, error: "twoFactor" };
-  const ok = await setAdminTwoFactorEnabled(true);
-  if (!ok) return { ok: false, error: "db" };
-  return { ok: true, message: "settingsSaved" };
-}
-
-export async function disableAdminTwoFactor(formData: FormData): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
-
-  const status = await getAdminTwoFactorStatus();
-  const secret = await getAdminTotpSecret();
-  const code = String(formData.get("totp") ?? "").trim();
-  if (status.enabled && !verifyTotpCode(secret, code)) return { ok: false, error: "twoFactor" };
-  const ok = await setAdminTwoFactorEnabled(false);
-  if (!ok) return { ok: false, error: "db" };
+/** Lets the admin confirm an authenticator app works before saving the secret to the environment. */
+export async function checkTwoFactorCode(secret: string, code: string): Promise<AdminResult> {
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
+  if (!/^[A-Z2-7]{16,}$/.test(String(secret))) return { ok: false, error: "invalid" };
+  if (!verifyTotpCode(secret, String(code))) return { ok: false, error: "twoFactor" };
   return { ok: true, message: "settingsSaved" };
 }
 
@@ -316,8 +215,7 @@ async function saveTwoLocalesWeb(params: {
 }
 
 export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   const locale = String(formData.get("locale") ?? "en");
   const title = String(formData.get("title") ?? "").trim();
@@ -361,8 +259,7 @@ export async function saveAdminPost(formData: FormData): Promise<AdminResult> {
 }
 
 export async function updateAdminPost(formData: FormData): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   const originalLocale = String(formData.get("originalLocale") ?? "");
   const originalSlug = String(formData.get("originalSlug") ?? "");
@@ -442,8 +339,7 @@ function addDays(base: Date, days: number): Date {
 }
 
 export async function generateBulkAiDrafts(formData: FormData): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   const locale = String(formData.get("locale") ?? "en");
   const rawTopics = String(formData.get("topics") ?? "");
@@ -511,8 +407,7 @@ export async function generateBulkAiDrafts(formData: FormData): Promise<AdminRes
 }
 
 export async function saveMarketingSettings(formData: FormData): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   const analyticsMeasurementId =
     String(formData.get("analyticsMeasurementId") ?? "").trim() || null;
@@ -533,8 +428,7 @@ export async function saveMarketingSettings(formData: FormData): Promise<AdminRe
 }
 
 export async function saveSmtpSettings(formData: FormData): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   const brevoApiKeyRaw = String(formData.get("brevoApiKey") ?? "").trim();
   const smtpHost = String(formData.get("smtpHost") ?? "").trim() || null;
@@ -560,8 +454,7 @@ export async function saveSmtpSettings(formData: FormData): Promise<AdminResult>
 }
 
 export async function deleteContactMessageAdmin(id: number): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
   const safeId = Number(id);
   if (!Number.isFinite(safeId) || safeId < 1) return { ok: false, error: "invalid" };
   const ok = await deleteContactMessage(safeId);
@@ -570,8 +463,7 @@ export async function deleteContactMessageAdmin(id: number): Promise<AdminResult
 }
 
 export async function saveConsultingSettings(formData: FormData): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   const consultingPrice30 = Number(String(formData.get("consultingPrice30") ?? ""));
   const consultingPrice60 = Number(String(formData.get("consultingPrice60") ?? ""));
@@ -602,8 +494,7 @@ export async function saveConsultingSettings(formData: FormData): Promise<AdminR
 }
 
 export async function deleteConsultingBookingAdmin(id: number): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
   const safeId = Number(id);
   if (!Number.isFinite(safeId) || safeId < 1) return { ok: false, error: "invalid" };
   const ok = await deleteConsultingBooking(safeId);
@@ -612,8 +503,7 @@ export async function deleteConsultingBookingAdmin(id: number): Promise<AdminRes
 }
 
 export async function publishAdminPost(locale: string, slug: string): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   const safeLocale = String(locale);
   const safeSlug = String(slug).trim();
@@ -659,8 +549,7 @@ export async function publishAdminPost(locale: string, slug: string): Promise<Ad
 }
 
 export async function deleteAdminPost(locale: string, slug: string): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   const safeLocale = String(locale);
   const safeSlug = String(slug).trim();
@@ -674,8 +563,7 @@ export async function deleteAdminPost(locale: string, slug: string): Promise<Adm
 }
 
 export async function deleteAdminPostGroup(slug: string): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
   const safeSlug = String(slug).trim();
   if (!safeSlug) return { ok: false, error: "invalid" };
 
@@ -685,8 +573,7 @@ export async function deleteAdminPostGroup(slug: string): Promise<AdminResult> {
 }
 
 export async function bulkDeleteAdminPostGroups(slugs: string[]): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
   const clean = [...new Set(slugs.map((s) => String(s).trim()).filter(Boolean))];
   if (!clean.length) return { ok: false, error: "invalid" };
 
@@ -698,8 +585,7 @@ export async function bulkDeleteAdminPostGroups(slugs: string[]): Promise<AdminR
 }
 
 export async function runCronNow(): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   try {
     const publishedCount = await autoPublishScheduledPosts(100);
@@ -723,8 +609,7 @@ export async function runCronNow(): Promise<AdminResult> {
 }
 
 export async function syncSitePostsToAdmin(): Promise<AdminResult> {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   try {
     const ok = await syncDemoSitePostsToAdminDb();
@@ -741,8 +626,7 @@ export async function generateEditorDraft(formData: FormData): Promise<
   | { ok: true; title: string; excerpt: string; content: string; tags: string }
   | { ok: false; error: "locked" | "invalid" | "db" }
 > {
-  const jar = await cookies();
-  if (jar.get(COOKIE)?.value !== "1") return { ok: false, error: "locked" };
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
   const locale = String(formData.get("locale") ?? "en");
   const topic = String(formData.get("topic") ?? "").trim();

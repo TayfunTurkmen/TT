@@ -10,7 +10,8 @@
     "d1:migrate:local": "wrangler d1 execute tayfun-blog-db --local --file ./migrations/0001_auto_blog_runs.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0002_blog_posts.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0003_admin_users.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0004_wordpress_like_cms.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0005_blog_post_media_fields.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0006_admin_2fa.sql && wrangler d1 execute tayfun-blog-db --local --file ./migrations/0007_consulting_bookings.sql",
     "d1:migrate:remote": "wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0001_auto_blog_runs.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0002_blog_posts.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0003_admin_users.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0004_wordpress_like_cms.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0005_blog_post_media_fields.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0006_admin_2fa.sql && wrangler d1 execute tayfun-blog-db --remote --file ./migrations/0007_consulting_bookings.sql",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "admin:hash": "node scripts/admin-hash.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.53",

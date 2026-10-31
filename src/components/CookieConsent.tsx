@@ -1,31 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 type Consent = "all" | "necessary" | null;
 
+const STORAGE_KEY = "tt-cookie-consent";
+
+function subscribe(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
+function readStoredConsent(): Consent {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) as Consent;
+  } catch {
+    return "necessary";
+  }
+}
+
 export function CookieConsent({ locale }: { locale: string }) {
-  const [consent, setConsent] = useState<Consent>(() => {
-    if (typeof window === "undefined") return "necessary";
-    return window.localStorage.getItem("tt-cookie-consent") as Consent;
-  });
-  const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return !window.localStorage.getItem("tt-cookie-consent");
-  });
+  // The server snapshot renders the collapsed button; the stored choice is read
+  // only on the client after hydration, so both renders match.
+  const stored = useSyncExternalStore(subscribe, readStoredConsent, () => "necessary" as Consent);
+  const [choice, setChoice] = useState<Consent>(null);
+  const [reopened, setReopened] = useState(false);
+  const consent = choice ?? stored;
+  const open = reopened || !consent;
   const tr = locale === "tr";
 
   const save = (value: Exclude<Consent, null>) => {
-    window.localStorage.setItem("tt-cookie-consent", value);
-    setConsent(value);
-    setOpen(false);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, value);
+    } catch {}
+    setChoice(value);
+    setReopened(false);
   };
 
   if (!open) {
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => setReopened(true)}
         className="fixed bottom-3 left-3 z-50 rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs font-semibold text-[var(--muted)] shadow-sm"
       >
         {tr ? "Çerezler" : "Cookies"}

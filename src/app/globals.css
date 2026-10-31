@@ -21,6 +21,10 @@
   --grid-line: rgba(24, 24, 27, 0.045);
   --prose: #3f3f46;
   --logo-tile: #ffffff;
+  --danger: #dc2626;
+  --danger-bg: rgba(220, 38, 38, 0.06);
+  --danger-border: rgba(220, 38, 38, 0.25);
+  --success: #16a34a;
   --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.04), 0 1px 1px rgba(24, 24, 27, 0.03);
   --shadow-md: 0 8px 24px -8px rgba(24, 24, 27, 0.12);
 }
@@ -47,6 +51,10 @@
   --grid-line: rgba(250, 250, 250, 0.04);
   --prose: #d4d4d8;
   --logo-tile: #e9e9ed;
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.08);
+  --danger-border: rgba(248, 113, 113, 0.3);
+  --success: #4ade80;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
 }
@@ -124,8 +132,29 @@ select:focus-visible {
     border-color: var(--muted);
   }
 
+  .btn-danger {
+    display: inline-flex;
+    min-height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--danger-border);
+    border-radius: 0.5rem;
+    background: var(--danger-bg);
+    padding: 0.35rem 0.75rem;
+    color: var(--danger);
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: border-color 150ms ease;
+  }
+
+  .btn-danger:hover {
+    border-color: var(--danger);
+  }
+
   .btn-primary:disabled,
-  .btn-secondary:disabled {
+  .btn-secondary:disabled,
+  .btn-danger:disabled {
     cursor: not-allowed;
     opacity: 0.5;
   }

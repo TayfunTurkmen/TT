@@ -36,12 +36,22 @@ This generates both Next.js output and OpenNext Worker artifacts (`.open-next/wo
 ## Admin Panel
 
 - Route: `/{locale}/admin` (e.g. `/en/admin`, `/tr/admin`)
-- On first visit, create an admin username and password (stored in D1 as hash+salt).
-- Demo admin credentials are not hard-coded for security. First D1-backed visit creates the initial admin account.
-- Use the panel to create/edit posts, save drafts, publish, and set single-post schedule date.
-- Use bulk AI form to generate multiple drafts and auto-schedule across future days.
-- Published posts are read from D1 and rendered in the public blog.
-- Section URLs such as `/en/admin/posts`, `/en/admin/pages`, `/en/admin/categories`, `/en/admin/tags`, `/en/admin/media`, `/en/admin/comments`, `/en/admin/ads`, `/en/admin/settings`, `/en/admin/seo`, and `/en/admin/users` resolve to the same secured CMS shell.
+- Login credentials come from environment variables, not from D1:
+
+  | Variable | Purpose |
+  | --- | --- |
+  | `ADMIN_USERNAME` | Login name |
+  | `ADMIN_PASSWORD_HASH` | `scrypt:<saltHex>:<hashHex>` |
+  | `ADMIN_SESSION_SECRET` | 32+ random characters used to sign the session cookie |
+  | `ADMIN_TOTP_SECRET` | Optional base32 secret; when set a 2FA code is required |
+
+- Generate the values with `npm run admin:hash` (hidden password prompt), then put them in `.env` (see `.env.example`).
+  For builds that run on Cloudflare, add them as secrets: `npx wrangler secret put ADMIN_PASSWORD_HASH` (and the others).
+- Sessions are HMAC-signed, HttpOnly, `SameSite=Strict` cookies that expire after 8 hours.
+  Changing the password hash, the 2FA secret or `ADMIN_SESSION_SECRET` signs out every session.
+- Failed logins are rate limited (5 failures → 15 min, 10 → 60 min) in memory and, when bound, in D1.
+- 2FA: Admin → Security → *Generate 2FA key*, test a code, then save it as `ADMIN_TOTP_SECRET`.
+- Posts, messages, bookings and settings still live in D1; without the `BLOG_DB` binding the panel opens but those sections are disabled.
 
 ## Public Routes
 
