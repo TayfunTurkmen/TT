@@ -55,7 +55,7 @@ export default async function ConsultingSuccessPage({ params, searchParams }: Pr
       </p>
       <Link
         href="/"
-        className="mt-8 inline-flex rounded-lg bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#041016]"
+        className="btn-primary mt-8"
       >
         {t("backHome")}
       </Link>

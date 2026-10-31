@@ -21,7 +21,7 @@ export default async function ContactPage({ params }: Props) {
   const ready = Boolean(await pingD1());
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <h1 className="font-[family-name:var(--font-display)] text-4xl font-bold text-[var(--text)]">{tr ? "İletişim" : "Contact"}</h1>
+      <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">{tr ? "İletişim" : "Contact"}</h1>
       <p className="mt-3 max-w-2xl text-lg leading-8 text-[var(--muted)]">
         {tr ? "İş birliği, geri bildirim veya teknik sorular için kısa bir not bırakabilirsiniz." : "Send a short note for collaborations, feedback, or technical questions."}
       </p>

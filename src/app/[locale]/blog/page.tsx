@@ -43,7 +43,7 @@ export default async function BlogIndexPage({ params, searchParams }: Props) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <header className="max-w-3xl">
-        <h1 className="font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight text-[var(--text)]">
+        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">
           {t("title")}
         </h1>
         <p className="mt-3 text-lg leading-8 text-[var(--muted)]">{t("subtitle")}</p>
@@ -61,7 +61,7 @@ export default async function BlogIndexPage({ params, searchParams }: Props) {
           <option value="popular">{tr ? "Popüler" : "Popular"}</option>
           <option value="views">{tr ? "En çok okunan" : "Most read"}</option>
         </select>
-        <button className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-bold text-white md:col-span-4">
+        <button className="btn-primary md:col-span-4">
           {tr ? "Filtrele" : "Filter"}
         </button>
       </form>

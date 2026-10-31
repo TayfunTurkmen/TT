@@ -31,7 +31,7 @@ export default async function AuthorPage({ params }: Props) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--accent)] text-2xl font-black text-white">{author.avatar}</div>
           <div>
-            <h1 className="font-[family-name:var(--font-display)] text-4xl font-bold text-[var(--text)]">{author.name}</h1>
+            <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">{author.name}</h1>
             <p className="mt-1 font-semibold text-[var(--accent)]">{author.role[safe]}</p>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--muted)]">{author.bio[safe]}</p>
             <div className="mt-3 flex gap-2">

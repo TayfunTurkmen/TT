@@ -83,7 +83,7 @@ export default async function BlogPostPage({ params }: Props) {
             <p className="mt-6 text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
               {post.category ? localizeCategory(post.category, locale) : "Blog"}
             </p>
-            <h1 className="mt-3 font-[family-name:var(--font-display)] text-4xl font-extrabold leading-tight text-[var(--text)] sm:text-5xl">
+            <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold leading-tight tracking-tight text-[var(--text)] sm:text-[2.75rem]">
               {post.title}
             </h1>
             <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
@@ -128,7 +128,7 @@ export default async function BlogPostPage({ params }: Props) {
             <form className="mt-4 grid gap-3">
               <input placeholder={tr ? "Adınız" : "Your name"} className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm" />
               <textarea rows={4} placeholder={tr ? "Yorumunuz" : "Your comment"} className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm" />
-              <button className="w-fit rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-bold text-white">{tr ? "Yorumu gönder" : "Submit comment"}</button>
+              <button className="btn-primary w-fit">{tr ? "Yorumu gönder" : "Submit comment"}</button>
             </form>
           </section>
 

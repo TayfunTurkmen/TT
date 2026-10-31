@@ -20,7 +20,7 @@ export default async function AboutPage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
-      <h1 className="font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight text-[var(--text)]">
+      <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">
         {t("title")}
       </h1>
       <p className="mt-8 text-lg leading-relaxed text-[var(--muted)]">{t("body")}</p>
@@ -59,7 +59,7 @@ export default async function AboutPage({ params }: Props) {
         href={LINKEDIN_PROFILE_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-8 inline-flex rounded-lg bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[#041016] transition hover:brightness-110"
+        className="btn-primary mt-8"
       >
         {t("linkedinCta")}
       </a>

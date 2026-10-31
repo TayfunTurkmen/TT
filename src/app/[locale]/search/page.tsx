@@ -25,10 +25,10 @@ export default async function SearchPage({ params, searchParams }: Props) {
     : [];
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      <h1 className="font-[family-name:var(--font-display)] text-4xl font-bold text-[var(--text)]">{tr ? "Arama" : "Search"}</h1>
+      <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">{tr ? "Arama" : "Search"}</h1>
       <form className="mt-5 flex max-w-2xl gap-2">
         <input name="q" defaultValue={q} placeholder={tr ? "Ne arıyorsunuz?" : "What are you looking for?"} className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm" />
-        <button className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-bold text-white">{tr ? "Ara" : "Search"}</button>
+        <button className="btn-primary">{tr ? "Ara" : "Search"}</button>
       </form>
       {needle && results.length === 0 ? (
         <section className="mt-8 rounded-lg border border-[var(--border)] bg-[var(--chip)] p-6">

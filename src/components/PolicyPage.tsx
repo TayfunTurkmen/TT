@@ -9,7 +9,7 @@ export function PolicyPage({
 }) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <h1 className="font-[family-name:var(--font-display)] text-4xl font-bold text-[var(--text)]">{title}</h1>
+      <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">{title}</h1>
       <p className="mt-3 text-lg leading-8 text-[var(--muted)]">{lead}</p>
       <div className="prose-doc mt-8">
         {sections.map((section) => (

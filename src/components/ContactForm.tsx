@@ -100,7 +100,7 @@ export function ContactForm({ enabled }: { enabled: boolean }) {
       <button
         type="submit"
         disabled={pending || !humanChecked}
-        className="w-full min-h-11 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[#041016] disabled:opacity-50 sm:w-auto sm:min-w-[8rem]"
+        className="btn-primary min-h-11 w-full sm:w-auto sm:min-w-[8rem]"
       >
         {t("contactSubmit")}
       </button>

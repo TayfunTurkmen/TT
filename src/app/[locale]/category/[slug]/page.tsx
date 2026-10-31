@@ -34,7 +34,7 @@ export default async function CategoryPage({ params }: Props) {
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <header className="max-w-3xl">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">{safe === "tr" ? "Kategori" : "Category"}</p>
-        <h1 className="mt-3 font-[family-name:var(--font-display)] text-4xl font-bold text-[var(--text)]">{category.title[safe]}</h1>
+        <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">{category.title[safe]}</h1>
         <p className="mt-3 text-lg leading-8 text-[var(--muted)]">{category.description[safe]}</p>
       </header>
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

@@ -31,7 +31,7 @@ export default async function ConsultingPage({ params, searchParams }: Props) {
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-2)]">
         {t("badge")}
       </p>
-      <h1 className="mt-2 font-[family-name:var(--font-display)] text-4xl font-bold text-[var(--text)]">
+      <h1 className="mt-2 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">
         {t("title")}
       </h1>
       <p className="mt-3 max-w-2xl text-lg leading-8 text-[var(--muted)]">{t("lead")}</p>

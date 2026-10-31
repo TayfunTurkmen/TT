@@ -8,15 +8,16 @@ export function LocaleSwitch({ locale }: Props) {
   const pathname = usePathname();
 
   return (
-    <div className="flex rounded-md border border-[var(--border)] bg-[var(--chip)] p-0.5">
+    <div className="flex h-9 items-center rounded-lg border border-[var(--border)] p-0.5">
       {routing.locales.map((l) => (
         <Link
           key={l}
           href={pathname}
           locale={l}
-          className={`rounded px-2 py-1 text-xs uppercase ${
+          aria-current={l === locale ? "true" : undefined}
+          className={`flex h-full items-center rounded-md px-2 text-[0.7rem] font-medium uppercase tracking-wide transition-colors ${
             l === locale
-              ? "bg-[var(--accent-2)] text-[var(--bg)]"
+              ? "bg-[var(--chip)] text-[var(--text)]"
               : "text-[var(--muted)] hover:text-[var(--text)]"
           }`}
         >

@@ -1,40 +1,76 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/routing";
 import { categories } from "@/lib/cms";
+import { LINKEDIN_PROFILE_URL } from "@/lib/social";
 
 type Props = { locale: string };
 
+const linkClass = "text-[var(--muted)] transition-colors hover:text-[var(--text)]";
+
 export async function SiteFooter({ locale }: Props) {
   const t = await getTranslations({ locale, namespace: "footer" });
+  const tr = locale === "tr";
 
   return (
     <footer className="mt-auto border-t border-[var(--border)] bg-[var(--footer-bg)]">
-      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-7 text-sm text-[var(--muted)] sm:px-6 md:grid-cols-[1.2fr_1fr_1fr]">
-        <div>
-          <p className="font-semibold text-[var(--text)]">Tayfun Türkmen</p>
-          <p className="mt-2">© {new Date().getFullYear()} - {t("rights")}</p>
-          <p className="mt-2 max-w-md text-xs leading-relaxed">{t("built")}</p>
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 text-sm sm:px-6 md:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="max-w-xs">
+          <p className="text-[0.8rem] font-semibold uppercase tracking-[0.22em] text-[var(--text)]">Tayfun Türkmen</p>
+          <p className="mt-3 leading-relaxed text-[var(--muted)]">
+            {tr ? "Web tasarım, yapay zekâ, veri ve ağ sistemleri." : "Web design, AI, data and network systems."}
+          </p>
+          <div className="mt-5 flex items-center gap-2">
+            <a
+              href={LINKEDIN_PROFILE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="LinkedIn"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition-colors hover:text-[var(--text)]"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z" />
+              </svg>
+            </a>
+            <a
+              href={`/api/rss?locale=${locale}`}
+              aria-label="RSS"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition-colors hover:text-[var(--text)]"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M4 11a9 9 0 0 1 9 9" />
+                <path d="M4 4a16 16 0 0 1 16 16" />
+                <circle cx="5" cy="19" r="1" />
+              </svg>
+            </a>
+          </div>
         </div>
-        <nav className="grid gap-2">
-          <p className="text-xs font-semibold uppercase text-[var(--text)]">
-            {locale === "tr" ? "Kategoriler" : "Categories"}
+        <nav className="grid content-start gap-2.5">
+          <p className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-[var(--text)]">
+            {tr ? "Kategoriler" : "Categories"}
           </p>
           {categories.slice(0, 5).map((category) => (
-            <Link key={category.slug} href={`/category/${category.slug}`} className="hover:text-[var(--accent)]">
-              {category.title[locale === "tr" ? "tr" : "en"]}
+            <Link key={category.slug} href={`/category/${category.slug}`} className={linkClass}>
+              {category.title[tr ? "tr" : "en"]}
             </Link>
           ))}
         </nav>
-        <nav className="grid gap-2">
-          <p className="text-xs font-semibold uppercase text-[var(--text)]">
-            {locale === "tr" ? "Sayfalar" : "Pages"}
+        <nav className="grid content-start gap-2.5">
+          <p className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-[var(--text)]">
+            {tr ? "Sayfalar" : "Pages"}
           </p>
-          <Link href="/about" className="hover:text-[var(--accent)]">{locale === "tr" ? "Hakkımda" : "About"}</Link>
-          <Link href="/contact" className="hover:text-[var(--accent)]">{locale === "tr" ? "İletişim" : "Contact"}</Link>
-          <Link href="/privacy-policy" className="hover:text-[var(--accent)]">{locale === "tr" ? "Gizlilik Politikası" : "Privacy Policy"}</Link>
-          <Link href="/cookie-policy" className="hover:text-[var(--accent)]">{locale === "tr" ? "Çerez Politikası" : "Cookie Policy"}</Link>
-          <Link href="/terms" className="hover:text-[var(--accent)]">{locale === "tr" ? "Kullanım Şartları" : "Terms"}</Link>
+          <Link href="/about" className={linkClass}>{tr ? "Hakkımda" : "About"}</Link>
+          <Link href="/consulting" className={linkClass}>{tr ? "Danışmanlık" : "Consulting"}</Link>
+          <Link href="/contact" className={linkClass}>{tr ? "İletişim" : "Contact"}</Link>
+          <Link href="/privacy-policy" className={linkClass}>{tr ? "Gizlilik Politikası" : "Privacy Policy"}</Link>
+          <Link href="/cookie-policy" className={linkClass}>{tr ? "Çerez Politikası" : "Cookie Policy"}</Link>
+          <Link href="/terms" className={linkClass}>{tr ? "Kullanım Şartları" : "Terms"}</Link>
         </nav>
+      </div>
+      <div className="border-t border-[var(--border)]">
+        <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-5 text-xs text-[var(--muted)] sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p>© {new Date().getFullYear()} Tayfun Türkmen. {t("rights")}</p>
+          <p>{t("built")}</p>
+        </div>
       </div>
     </footer>
   );

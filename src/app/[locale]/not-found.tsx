@@ -14,11 +14,11 @@ export default function NotFound() {
       </p>
       <form action="/en/search" className="mx-auto mt-6 flex max-w-md gap-2">
         <input name="q" className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm" placeholder="Search articles" />
-        <button className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-bold text-white">Search</button>
+        <button className="btn-primary">Search</button>
       </form>
       <Link
         href="/"
-        className="mt-8 inline-flex rounded-lg bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[#041016]"
+        className="btn-secondary mt-8"
       >
         Go home
       </Link>

@@ -61,7 +61,7 @@ export function BlogSidebar({
             <input type="checkbox" required className="mt-1" />
             <span>{safeLocale === "tr" ? "KVKK/GDPR kapsamında ileti almayı kabul ediyorum." : "I consent to receive email updates under GDPR/KVKK."}</span>
           </label>
-          <button type="submit" className="w-full rounded-md bg-[var(--accent)] px-3 py-2 text-sm font-bold text-white">
+          <button type="submit" className="btn-primary w-full">
             {safeLocale === "tr" ? "Abone ol" : "Subscribe"}
           </button>
         </form>

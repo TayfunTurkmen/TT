@@ -23,7 +23,7 @@ export default async function TagPage({ params }: Props) {
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <header>
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">{tr ? "Etiket" : "Tag"}</p>
-        <h1 className="mt-3 font-[family-name:var(--font-display)] text-4xl font-bold text-[var(--text)]">#{slug}</h1>
+        <h1 className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">#{slug}</h1>
       </header>
       {posts.length ? (
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
