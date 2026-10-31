@@ -6,14 +6,12 @@ import {
   createTwoFactorSecret,
   deleteAdminPostGroup,
   deleteContactMessageAdmin,
-  deleteConsultingBookingAdmin,
   generateEditorDraft,
   generateBulkAiDrafts,
   logoutAdmin,
   publishAdminPost,
   runCronNow,
   saveMarketingSettings,
-  saveConsultingSettings,
   saveAdminPost,
   saveSmtpSettings,
   syncSitePostsToAdmin,
@@ -56,21 +54,6 @@ type ContactInboxEntry = {
   createdAt: string;
 };
 
-type ConsultingBookingEntry = {
-  id: number;
-  name: string;
-  email: string;
-  package: "30" | "60";
-  preferredDate: string;
-  preferredTime: string;
-  topic: string;
-  locale: string;
-  status: "pending" | "paid" | "cancelled";
-  amountCents: number;
-  currency: string;
-  createdAt: string;
-  paidAt: string | null;
-};
 
 type EditorBlock = {
   id: string;
@@ -88,7 +71,7 @@ function toAutoSlug(value: string): string {
     .slice(0, 120);
 }
 
-type AdminTab = "editor" | "posts" | "automation" | "contact" | "consulting" | "settings" | "security";
+type AdminTab = "editor" | "posts" | "automation" | "contact" | "settings" | "security";
 
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -113,8 +96,6 @@ export function AdminPanel({
   initialCronRuns,
   initialSettings,
   initialContactMessages,
-  initialConsulting,
-  initialConsultingBookings,
   initialSmtp,
 }: {
   auth: { configured: boolean; problems: string[]; twoFactorEnabled: boolean };
@@ -129,15 +110,6 @@ export function AdminPanel({
     hasAiApiKey: boolean;
   };
   initialContactMessages: ContactInboxEntry[];
-  initialConsulting: {
-    consultingPrice30: number;
-    consultingPrice60: number;
-    consultingCurrency: string;
-    consultingEnabled: boolean;
-    hasStripeSecretKey: boolean;
-    hasStripeWebhookSecret: boolean;
-  };
-  initialConsultingBookings: ConsultingBookingEntry[];
   initialSmtp: {
     hasBrevoApiKey: boolean;
     smtpHost: string;
@@ -285,7 +257,6 @@ export function AdminPanel({
     ["posts", t("tabPosts")],
     ["automation", t("tabAutomation")],
     ["contact", t("tabContact")],
-    ["consulting", t("tabConsulting")],
     ["settings", t("tabSettings")],
     ["security", t("tabSecurity")],
   ];
@@ -759,176 +730,6 @@ export function AdminPanel({
                       <p className="mt-2 whitespace-pre-wrap break-words text-[var(--muted)]">
                         {m.body}
                       </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </div>
-
-          <div className={`space-y-6 ${activeTab === "consulting" ? "" : "hidden"}`}>
-            <form
-              className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 sm:p-6"
-              action={(fd) => {
-                setMessage(null);
-                start(async () => {
-                  const res = await saveConsultingSettings(fd);
-                  setMessage(res.ok ? t("settingsSaved") : t("error"));
-                  if (res.ok) router.refresh();
-                });
-              }}
-            >
-              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
-                {t("consultingTitle")}
-              </h2>
-              <p className="mt-2 text-sm text-[var(--muted)]">{t("consultingLead")}</p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <label className="flex items-center gap-2 text-sm text-[var(--muted)] sm:col-span-2">
-                  <input
-                    name="consultingEnabled"
-                    type="checkbox"
-                    value="on"
-                    defaultChecked={initialConsulting.consultingEnabled}
-                    className="rounded border-[var(--border)]"
-                  />
-                  {t("consultingEnabled")}
-                </label>
-                <label className="text-sm text-[var(--muted)]">
-                  {t("consultingPrice30")}
-                  <input
-                    name="consultingPrice30"
-                    type="number"
-                    min={100}
-                    step={100}
-                    required
-                    defaultValue={initialConsulting.consultingPrice30}
-                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                  />
-                </label>
-                <label className="text-sm text-[var(--muted)]">
-                  {t("consultingPrice60")}
-                  <input
-                    name="consultingPrice60"
-                    type="number"
-                    min={100}
-                    step={100}
-                    required
-                    defaultValue={initialConsulting.consultingPrice60}
-                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                  />
-                </label>
-                <label className="text-sm text-[var(--muted)]">
-                  {t("consultingCurrency")}
-                  <input
-                    name="consultingCurrency"
-                    defaultValue={initialConsulting.consultingCurrency}
-                    placeholder="usd"
-                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                  />
-                </label>
-                <label className="text-sm text-[var(--muted)] sm:col-span-2">
-                  {t("stripeSecretKey")}
-                  <input
-                    name="stripeSecretKey"
-                    type="password"
-                    placeholder={
-                      initialConsulting.hasStripeSecretKey
-                        ? t("stripeSecretKeyHintSet")
-                        : t("stripeSecretKeyHintEmpty")
-                    }
-                    autoComplete="new-password"
-                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                  />
-                </label>
-                <label className="text-sm text-[var(--muted)] sm:col-span-2">
-                  {t("stripeWebhookSecret")}
-                  <input
-                    name="stripeWebhookSecret"
-                    type="password"
-                    placeholder={
-                      initialConsulting.hasStripeWebhookSecret
-                        ? t("stripeWebhookSecretHintSet")
-                        : t("stripeWebhookSecretHintEmpty")
-                    }
-                    autoComplete="new-password"
-                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)]"
-                  />
-                </label>
-              </div>
-              <p className="mt-3 text-xs leading-5 text-[var(--muted)]">{t("consultingWebhookHint")}</p>
-              <button
-                type="submit"
-                disabled={pending}
-                className="mt-4 btn-primary"
-              >
-                {t("saveConsulting")}
-              </button>
-            </form>
-
-            <section className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 sm:p-6">
-              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
-                {t("consultingBookingsTitle")}
-              </h2>
-              <p className="mt-2 text-sm text-[var(--muted)]">{t("consultingBookingsLead")}</p>
-              {initialConsultingBookings.length === 0 ? (
-                <p className="mt-4 text-sm text-[var(--muted)]">{t("consultingBookingsEmpty")}</p>
-              ) : (
-                <ul className="mt-4 space-y-3 text-sm">
-                  {initialConsultingBookings.map((b) => (
-                    <li
-                      key={b.id}
-                      className="min-w-0 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="break-words font-medium text-[var(--text)]">
-                            {b.name} ·{" "}
-                            <a className="break-all text-[var(--accent-ink)]" href={`mailto:${b.email}`}>
-                              {b.email}
-                            </a>
-                          </p>
-                          <p className="break-words text-xs text-[var(--muted)]">
-                            {b.createdAt}
-                            {b.paidAt ? ` · paid ${b.paidAt}` : ""} · {b.locale.toUpperCase()} ·{" "}
-                            {b.package} min · {(b.amountCents / 100).toFixed(2)} {b.currency.toUpperCase()}
-                          </p>
-                          <p className="mt-1 text-xs text-[var(--muted)]">
-                            {b.preferredDate} {b.preferredTime} ·{" "}
-                            <span
-                              className={
-                                b.status === "paid"
-                                  ? "text-[var(--accent-2)]"
-                                  : b.status === "pending"
-                                    ? "text-[var(--muted)]"
-                                    : "text-[var(--danger)]"
-                              }
-                            >
-                              {b.status}
-                            </span>
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={pending}
-                          onClick={() => {
-                            if (!window.confirm(t("consultingDeleteConfirm"))) return;
-                            setMessage(null);
-                            start(async () => {
-                              const res = await deleteConsultingBookingAdmin(b.id);
-                              setMessage(res.ok ? t("deleted") : t("error"));
-                              if (res.ok) router.refresh();
-                            });
-                          }}
-                          className="shrink-0 btn-danger"
-                        >
-                          {t("delete")}
-                        </button>
-                      </div>
-                      {b.topic ? (
-                        <p className="mt-2 whitespace-pre-wrap break-words text-[var(--muted)]">
-                          {b.topic}
-                        </p>
-                      ) : null}
                     </li>
                   ))}
                 </ul>

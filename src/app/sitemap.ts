@@ -18,7 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${base}/${locale}/blog`,
       lastModified: last,
     });
-    for (const page of ["about", "contact", "privacy-policy", "cookie-policy", "terms", "search"]) {
+    for (const page of ["about", "consulting", "contact", "privacy-policy", "cookie-policy", "terms", "pre-information", "distance-sales-agreement", "cancellation-refund", "search"]) {
       entries.push({ url: `${base}/${locale}/${page}`, lastModified: last });
     }
     for (const category of categories) {

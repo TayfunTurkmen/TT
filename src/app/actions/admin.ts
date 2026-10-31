@@ -9,12 +9,10 @@ import {
   deleteBlogPostsBySlug,
   deleteBlogPost,
   deleteContactMessage,
-  deleteConsultingBooking,
   getAdminBlogPost,
   logCronRun,
   publishBlogPostsBySlug,
   saveAdminAiSettings,
-  saveAdminConsultingSettings,
   saveAdminSmtpSettings,
   savePublicSiteSettings,
   upsertBlogPost,
@@ -462,45 +460,7 @@ export async function deleteContactMessageAdmin(id: number): Promise<AdminResult
   return { ok: true, message: "deleted" };
 }
 
-export async function saveConsultingSettings(formData: FormData): Promise<AdminResult> {
-  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
 
-  const consultingPrice30 = Number(String(formData.get("consultingPrice30") ?? ""));
-  const consultingPrice60 = Number(String(formData.get("consultingPrice60") ?? ""));
-  const consultingCurrency = String(formData.get("consultingCurrency") ?? "usd").trim().toLowerCase();
-  const consultingEnabled = String(formData.get("consultingEnabled") ?? "") === "on";
-  const stripeSecretKeyRaw = String(formData.get("stripeSecretKey") ?? "").trim();
-  const stripeWebhookSecretRaw = String(formData.get("stripeWebhookSecret") ?? "").trim();
-
-  if (
-    !Number.isFinite(consultingPrice30) ||
-    !Number.isFinite(consultingPrice60) ||
-    consultingPrice30 < 100 ||
-    consultingPrice60 < 100
-  ) {
-    return { ok: false, error: "invalid" };
-  }
-
-  const ok = await saveAdminConsultingSettings({
-    consultingPrice30,
-    consultingPrice60,
-    consultingCurrency: consultingCurrency || "usd",
-    consultingEnabled,
-    stripeSecretKey: stripeSecretKeyRaw ? stripeSecretKeyRaw : undefined,
-    stripeWebhookSecret: stripeWebhookSecretRaw ? stripeWebhookSecretRaw : undefined,
-  });
-  if (!ok) return { ok: false, error: "db" };
-  return { ok: true, message: "settingsSaved" };
-}
-
-export async function deleteConsultingBookingAdmin(id: number): Promise<AdminResult> {
-  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
-  const safeId = Number(id);
-  if (!Number.isFinite(safeId) || safeId < 1) return { ok: false, error: "invalid" };
-  const ok = await deleteConsultingBooking(safeId);
-  if (!ok) return { ok: false, error: "db" };
-  return { ok: true, message: "deleted" };
-}
 
 export async function publishAdminPost(locale: string, slug: string): Promise<AdminResult> {
   if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };

@@ -25,8 +25,7 @@
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
     "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.1",
-    "stripe": "^17.7.0"
+    "remark-gfm": "^4.0.1"
   },
   "overrides": {
     "@swc/helpers": "0.5.21",

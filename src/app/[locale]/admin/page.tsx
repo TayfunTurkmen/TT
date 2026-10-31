@@ -2,11 +2,9 @@ import { AdminPanel } from "@/components/AdminPanel";
 import { getAdminAuthStatus, getAdminSession } from "@/lib/admin-auth";
 import {
   getAdminAiSettings,
-  getAdminConsultingSettings,
   getAdminSmtpSettings,
   getPublicSiteSettings,
   listAdminBlogPosts,
-  listConsultingBookings,
   listContactMessages,
   listCronRuns,
   pingD1,
@@ -35,18 +33,16 @@ export default async function AdminPage({ params }: Props) {
   const d1Connected = session ? Boolean(await pingD1()) : false;
   const load = Boolean(session) && d1Connected;
 
-  const [posts, cronRuns, contactMessages, consultingBookings, marketing, consulting, ai, smtp] = load
+  const [posts, cronRuns, contactMessages, marketing, ai, smtp] = load
     ? await Promise.all([
         listAdminBlogPosts(100),
         listCronRuns(15),
         listContactMessages(80),
-        listConsultingBookings(80),
         getPublicSiteSettings(),
-        getAdminConsultingSettings(),
         getAdminAiSettings(),
         getAdminSmtpSettings(),
       ])
-    : [[], [], [], [], null, null, null, null];
+    : [[], [], [], null, null, null];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
@@ -83,29 +79,6 @@ export default async function AdminPage({ params }: Props) {
           locale: m.locale,
           ip: m.ip,
           createdAt: m.createdAt,
-        }))}
-        initialConsulting={{
-          consultingPrice30: consulting?.consultingPrice30 ?? 7500,
-          consultingPrice60: consulting?.consultingPrice60 ?? 12000,
-          consultingCurrency: consulting?.consultingCurrency ?? "usd",
-          consultingEnabled: Boolean(consulting?.consultingEnabled),
-          hasStripeSecretKey: Boolean(consulting?.stripeSecretKey),
-          hasStripeWebhookSecret: Boolean(consulting?.stripeWebhookSecret),
-        }}
-        initialConsultingBookings={consultingBookings.map((b) => ({
-          id: b.id,
-          name: b.name,
-          email: b.email,
-          package: b.package,
-          preferredDate: b.preferredDate,
-          preferredTime: b.preferredTime,
-          topic: b.topic,
-          locale: b.locale,
-          status: b.status,
-          amountCents: b.amountCents,
-          currency: b.currency,
-          createdAt: b.createdAt,
-          paidAt: b.paidAt,
         }))}
         initialSmtp={{
           hasBrevoApiKey: Boolean(smtp?.brevoApiKey),

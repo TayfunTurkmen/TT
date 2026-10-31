@@ -53,6 +53,16 @@ This generates both Next.js output and OpenNext Worker artifacts (`.open-next/wo
 - 2FA: Admin → Security → *Generate 2FA key*, test a code, then save it as `ADMIN_TOTP_SECRET`.
 - Posts, messages, bookings and settings still live in D1; without the `BLOG_DB` binding the panel opens but those sections are disabled.
 
+## Paid Consulting (iyzico)
+
+- Payment is taken through an iyzico payment link (individual account); there is no checkout API or webhook.
+- Seller details, the package price and the payment link live in `src/lib/business.ts`.
+  Fill in `address`, `phone` and `email` and set `paymentLink` once the iyzico link is created; empty fields are hidden.
+- Legal pages required by iyzico and Turkish distance-sales rules: `/pre-information`, `/distance-sales-agreement`,
+  `/cancellation-refund`, plus `/privacy-policy`. The texts are generated from `src/lib/legal.ts`.
+- Buyers must accept the pre-information form and the distance sales agreement before the pay button is enabled.
+- To show iyzico's official logo band in the footer, put the file in `public/` and set `paymentLogoBand`.
+
 ## Public Routes
 
 - `/`, `/blog`, `/blog/post-slug`

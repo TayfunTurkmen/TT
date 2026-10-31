@@ -17,10 +17,14 @@ export default async function PrivacyPolicyPage({ params }: Props) {
     <PolicyPage
       title={tr ? "Gizlilik Politikası" : "Privacy Policy"}
       lead={tr ? "Bu sayfa, site kullanımında hangi verilerin nasıl işlendiğini açıklar." : "This page explains how data is handled when you use this site."}
+      locale={locale}
+      showSeller
       sections={[
+        { title: tr ? "Veri sorumlusu" : "Data controller", body: tr ? "6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) kapsamında veri sorumlusu, iletişim bilgileri yukarıda yer alan Tayfun Türkmen'dir." : "Under Turkish Data Protection Law No. 6698 (KVKK), the data controller is Tayfun Türkmen, whose contact details are shown above." },
         { title: tr ? "Toplanan veriler" : "Data collected", body: tr ? "İletişim formları, yorumlar, bülten aboneliği ve güvenlik kayıtları kapsamında sınırlı veri işlenebilir." : "Limited data may be processed through contact forms, comments, newsletter subscriptions, and security logs." },
         { title: tr ? "Analiz" : "Analytics", body: tr ? "Google Analytics 4 veya benzeri araçlar yalnızca yapılandırıldığında ve uygun çerez onayıyla kullanılmalıdır." : "Google Analytics 4 or similar tools should run only when configured and with appropriate cookie consent." },
-        { title: tr ? "Haklarınız" : "Your rights", body: tr ? "Verilerinizle ilgili erişim, düzeltme veya silme talepleri için iletişim sayfasını kullanabilirsiniz." : "Use the contact page to request access, correction, or deletion of your data." },
+        { title: tr ? "Ödeme verileri" : "Payment data", body: tr ? "Danışmanlık ödemeleri iyzico altyapısıyla alınır. Kart bilgileri iyzico tarafından işlenir ve bu sitede saklanmaz; ad, e-posta ve ödeme kaydı yalnızca hizmetin sunulması ve yasal yükümlülükler için, yasal süreler boyunca saklanır." : "Consulting payments are taken through iyzico. Card details are processed by iyzico and never stored on this site; name, e-mail and the payment record are kept only to provide the service and meet legal obligations, for the legally required period." },
+        { title: tr ? "Haklarınız" : "Your rights", body: tr ? "KVKK'nın 11. maddesi uyarınca verilerinizin işlenip işlenmediğini öğrenme, bilgi talep etme, düzeltilmesini veya silinmesini isteme ve işlemeye itiraz etme haklarına sahipsiniz. Talepleriniz için iletişim sayfasını kullanabilirsiniz." : "Under Article 11 of KVKK you may ask whether your data is processed, request information, ask for correction or deletion, and object to processing. Use the contact page for any request." },
       ]}
     />
   );
