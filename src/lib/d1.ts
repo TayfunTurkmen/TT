@@ -86,9 +86,6 @@ export type ContactMessage = {
   createdAt: string;
 };
 
-
-
-
 function getDb(): D1Like | null {
   try {
     const { env } = getCloudflareContext();
@@ -105,7 +102,7 @@ async function ensureD1SchemaUncached() {
   try {
     const row = await db
       .prepare(
-        "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('auto_blog_runs', 'blog_posts', 'admin_users', 'site_settings', 'cron_runs', 'admin_login_attempts', 'contact_messages', 'consulting_bookings')",
+        "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('auto_blog_runs', 'blog_posts', 'admin_users', 'site_settings', 'cron_runs', 'admin_login_attempts', 'contact_messages', 'appointment_requests')",
       )
       .bind()
       .first<{ count: number }>();
@@ -166,22 +163,14 @@ async function ensureD1SchemaUncached() {
 
     await db
       .prepare(
-        "CREATE TABLE IF NOT EXISTS consulting_bookings (id INTEGER PRIMARY KEY AUTOINCREMENT, public_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, email TEXT NOT NULL, package TEXT NOT NULL CHECK (package IN ('30', '60')), preferred_date TEXT NOT NULL, preferred_time TEXT NOT NULL, topic TEXT NOT NULL DEFAULT '', locale TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'cancelled')), stripe_session_id TEXT NULL, amount_cents INTEGER NOT NULL, currency TEXT NOT NULL DEFAULT 'usd', ip TEXT NULL, user_agent TEXT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), paid_at TEXT NULL)",
+        "CREATE TABLE IF NOT EXISTS appointment_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, preferred_date TEXT NOT NULL, preferred_time TEXT NOT NULL, topic TEXT NOT NULL DEFAULT '', locale TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')), ip TEXT NULL, user_agent TEXT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), decided_at TEXT NULL)",
       )
       .bind()
       .run();
 
     try {
       await db
-        .prepare(
-          "CREATE INDEX IF NOT EXISTS idx_consulting_bookings_status ON consulting_bookings(status)",
-        )
-        .bind()
-        .run();
-      await db
-        .prepare(
-          "CREATE INDEX IF NOT EXISTS idx_consulting_bookings_stripe_session ON consulting_bookings(stripe_session_id)",
-        )
+        .prepare("CREATE INDEX IF NOT EXISTS idx_appointment_requests_status ON appointment_requests(status)")
         .bind()
         .run();
     } catch {
@@ -1006,15 +995,144 @@ export async function deleteContactMessage(id: number): Promise<boolean> {
   }
 }
 
+export type AppointmentStatus = "pending" | "approved" | "rejected";
 
+export type AppointmentRequest = {
+  id: number;
+  name: string;
+  email: string;
+  preferredDate: string;
+  preferredTime: string;
+  topic: string;
+  locale: string;
+  status: AppointmentStatus;
+  createdAt: string;
+  decidedAt: string | null;
+};
 
+type RawAppointmentRequest = {
+  id: number;
+  name: string;
+  email: string;
+  preferred_date: string;
+  preferred_time: string;
+  topic: string;
+  locale: string;
+  status: AppointmentStatus;
+  created_at: string;
+  decided_at: string | null;
+};
 
+const APPOINTMENT_COLUMNS =
+  "id, name, email, preferred_date, preferred_time, topic, locale, status, created_at, decided_at";
 
+function mapAppointmentRequest(row: RawAppointmentRequest): AppointmentRequest {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    preferredDate: row.preferred_date,
+    preferredTime: row.preferred_time,
+    topic: row.topic,
+    locale: row.locale,
+    status: row.status,
+    createdAt: row.created_at,
+    decidedAt: row.decided_at,
+  };
+}
 
+export async function insertAppointmentRequest(input: {
+  name: string;
+  email: string;
+  preferredDate: string;
+  preferredTime: string;
+  topic: string;
+  locale: string;
+  ip: string | null;
+  userAgent: string | null;
+}): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare(
+        "INSERT INTO appointment_requests (name, email, preferred_date, preferred_time, topic, locale, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .bind(
+        input.name,
+        input.email,
+        input.preferredDate,
+        input.preferredTime,
+        input.topic,
+        input.locale,
+        input.ip,
+        input.userAgent,
+      )
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
+export async function listAppointmentRequests(limit = 50): Promise<AppointmentRequest[]> {
+  const db = getDb();
+  if (!db) return [];
+  if (!(await ensureD1Schema())) return [];
+  try {
+    const rows = await db
+      .prepare(
+        `SELECT ${APPOINTMENT_COLUMNS} FROM appointment_requests ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, id DESC LIMIT ?`,
+      )
+      .bind(Math.max(1, Math.min(limit, 200)))
+      .all<RawAppointmentRequest>();
+    return rows.results.map(mapAppointmentRequest);
+  } catch {
+    return [];
+  }
+}
 
+export async function getAppointmentRequest(id: number): Promise<AppointmentRequest | null> {
+  const db = getDb();
+  if (!db) return null;
+  if (!(await ensureD1Schema())) return null;
+  try {
+    const row = await db
+      .prepare(`SELECT ${APPOINTMENT_COLUMNS} FROM appointment_requests WHERE id = ? LIMIT 1`)
+      .bind(id)
+      .first<RawAppointmentRequest>();
+    return row ? mapAppointmentRequest(row) : null;
+  } catch {
+    return null;
+  }
+}
 
+export async function setAppointmentStatus(id: number, status: AppointmentStatus): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db
+      .prepare(
+        "UPDATE appointment_requests SET status = ?, decided_at = CASE WHEN ? = 'pending' THEN NULL ELSE datetime('now') END WHERE id = ?",
+      )
+      .bind(status, status, id)
+      .run();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-
-
-
+export async function deleteAppointmentRequest(id: number): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!(await ensureD1Schema())) return false;
+  try {
+    await db.prepare("DELETE FROM appointment_requests WHERE id = ?").bind(id).run();
+    return true;
+  } catch {
+    return false;
+  }
+}

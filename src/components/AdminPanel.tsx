@@ -5,6 +5,8 @@ import {
   checkTwoFactorCode,
   createTwoFactorSecret,
   deleteAdminPostGroup,
+  decideAppointment,
+  deleteAppointmentAdmin,
   deleteContactMessageAdmin,
   generateEditorDraft,
   generateBulkAiDrafts,
@@ -44,6 +46,18 @@ type CronEntry = {
   createdAt: string;
 };
 
+type AppointmentEntry = {
+  id: number;
+  name: string;
+  email: string;
+  preferredDate: string;
+  preferredTime: string;
+  topic: string;
+  locale: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+};
+
 type ContactInboxEntry = {
   id: number;
   name: string;
@@ -71,7 +85,7 @@ function toAutoSlug(value: string): string {
     .slice(0, 120);
 }
 
-type AdminTab = "editor" | "posts" | "automation" | "contact" | "settings" | "security";
+type AdminTab = "editor" | "posts" | "appointments" | "automation" | "contact" | "settings" | "security";
 
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -96,6 +110,7 @@ export function AdminPanel({
   initialCronRuns,
   initialSettings,
   initialContactMessages,
+  initialAppointments,
   initialSmtp,
 }: {
   auth: { configured: boolean; problems: string[]; twoFactorEnabled: boolean };
@@ -110,6 +125,7 @@ export function AdminPanel({
     hasAiApiKey: boolean;
   };
   initialContactMessages: ContactInboxEntry[];
+  initialAppointments: AppointmentEntry[];
   initialSmtp: {
     hasBrevoApiKey: boolean;
     smtpHost: string;
@@ -255,6 +271,7 @@ export function AdminPanel({
   const tabs: Array<[AdminTab, string]> = [
     ["editor", t("tabEditor")],
     ["posts", t("tabPosts")],
+    ["appointments", t("tabAppointments")],
     ["automation", t("tabAutomation")],
     ["contact", t("tabContact")],
     ["settings", t("tabSettings")],
@@ -312,7 +329,7 @@ export function AdminPanel({
         {[
           [t("publishedPosts"), initialPosts.filter((post) => post.published).length],
           [t("drafts"), initialPosts.filter((post) => !post.published && !post.scheduledFor).length],
-          [t("scheduled"), initialPosts.filter((post) => !post.published && post.scheduledFor).length],
+          [t("pendingAppointments"), initialAppointments.filter((item) => item.status === "pending").length],
           [t("messages"), initialContactMessages.length],
         ].map(([label, value]) => (
           <article key={String(label)} className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
@@ -569,6 +586,115 @@ export function AdminPanel({
                 ))
               )}
             </ul>
+          </section>
+
+          <section
+            className={`rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 sm:p-6 ${
+              activeTab === "appointments" ? "" : "hidden"
+            }`}
+          >
+            <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--text)]">
+              {t("appointmentsTitle")}
+            </h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">{t("appointmentsLead")}</p>
+            {initialAppointments.length === 0 ? (
+              <p className="mt-4 text-sm text-[var(--muted)]">{t("appointmentsEmpty")}</p>
+            ) : (
+              <ul className="mt-4 space-y-3 text-sm">
+                {initialAppointments.map((appointment) => (
+                  <li key={appointment.id} className="min-w-0 rounded-xl border border-[var(--border)] p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words font-medium text-[var(--text)]">
+                          {appointment.name} ·{" "}
+                          <a className="break-all text-[var(--accent-ink)]" href={`mailto:${appointment.email}`}>
+                            {appointment.email}
+                          </a>
+                        </p>
+                        <p className="mt-1 text-[var(--text)]">
+                          {t("requestedFor")}:{" "}
+                          <span className="font-mono">
+                            {appointment.preferredDate} {appointment.preferredTime}
+                          </span>
+                        </p>
+                        <p className="mt-0.5 text-xs text-[var(--muted)]">
+                          {appointment.createdAt} · {appointment.locale.toUpperCase()}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${
+                          appointment.status === "approved"
+                            ? "border-transparent bg-[var(--success)]/10 text-[var(--success)]"
+                            : appointment.status === "rejected"
+                              ? "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)]"
+                              : "border-[var(--border-strong)] text-[var(--text)]"
+                        }`}
+                      >
+                        {appointment.status === "approved"
+                          ? t("statusApproved")
+                          : appointment.status === "rejected"
+                            ? t("statusRejected")
+                            : t("statusPending")}
+                      </span>
+                    </div>
+                    <p className="mt-3 whitespace-pre-wrap break-words text-[var(--muted)]">{appointment.topic}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(["approved", "rejected"] as const)
+                        .filter((decision) => decision !== appointment.status)
+                        .map((decision) => (
+                          <button
+                            key={decision}
+                            type="button"
+                            disabled={pending}
+                            onClick={() => {
+                              setMessage(null);
+                              start(async () => {
+                                const res = await decideAppointment(appointment.id, decision);
+                                if (!res.ok) {
+                                  setMessage(t("error"));
+                                  return;
+                                }
+                                setMessage(
+                                  `${t(decision === "approved" ? "appointmentApproved" : "appointmentRejected")} ${
+                                    res.emailed ? t("appointmentEmailed") : t("appointmentNotEmailed")
+                                  }`,
+                                );
+                                router.refresh();
+                              });
+                            }}
+                            className={
+                              decision === "approved"
+                                ? "btn-primary min-h-8 px-3 py-1.5 text-xs"
+                                : "btn-secondary min-h-8 px-3 py-1.5 text-xs"
+                            }
+                          >
+                            {decision === "approved" ? t("approve") : t("reject")}
+                          </button>
+                        ))}
+                      <a href={`mailto:${appointment.email}`} className="btn-secondary min-h-8 px-3 py-1.5 text-xs">
+                        {t("replyByEmail")}
+                      </a>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => {
+                          if (!window.confirm(t("appointmentDeleteConfirm"))) return;
+                          setMessage(null);
+                          start(async () => {
+                            const res = await deleteAppointmentAdmin(appointment.id);
+                            setMessage(res.ok ? t("deleted") : t("error"));
+                            if (res.ok) router.refresh();
+                          });
+                        }}
+                        className="btn-danger"
+                      >
+                        {t("delete")}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           <div

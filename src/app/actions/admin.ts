@@ -7,18 +7,23 @@ import { extractKeywords } from "@/lib/web-fetch";
 import {
   autoPublishScheduledPosts,
   deleteBlogPostsBySlug,
+  deleteAppointmentRequest,
   deleteBlogPost,
   deleteContactMessage,
   getAdminBlogPost,
+  getAdminSmtpSettings,
+  getAppointmentRequest,
   logCronRun,
   publishBlogPostsBySlug,
   saveAdminAiSettings,
   saveAdminSmtpSettings,
   savePublicSiteSettings,
+  setAppointmentStatus,
   upsertBlogPost,
 } from "@/lib/d1";
 import { attemptAdminLogin, endAdminSession, getClientIp, isAdminAuthenticated } from "@/lib/admin-auth";
 import { isLikelyBotSubmission } from "@/lib/form-guard";
+import { hasContactNotificationTransport, sendContactNotificationEmail } from "@/lib/smtp-send";
 import { buildTotpUri, generateTotpSecret, verifyTotpCode } from "@/lib/totp";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -460,7 +465,63 @@ export async function deleteContactMessageAdmin(id: number): Promise<AdminResult
   return { ok: true, message: "deleted" };
 }
 
+export type AppointmentDecisionResult =
+  | { ok: true; emailed: boolean }
+  | { ok: false; error: "locked" | "invalid" | "db" };
 
+/** Approves or rejects an appointment request and, when e-mail is configured, tells the requester. */
+export async function decideAppointment(
+  id: number,
+  decision: "approved" | "rejected",
+): Promise<AppointmentDecisionResult> {
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
+  const safeId = Number(id);
+  if (!Number.isFinite(safeId) || safeId < 1) return { ok: false, error: "invalid" };
+  if (decision !== "approved" && decision !== "rejected") return { ok: false, error: "invalid" };
+
+  const appointment = await getAppointmentRequest(safeId);
+  if (!appointment) return { ok: false, error: "invalid" };
+  if (!(await setAppointmentStatus(safeId, decision))) return { ok: false, error: "db" };
+
+  let emailed = false;
+  const smtp = await getAdminSmtpSettings();
+  if (hasContactNotificationTransport(smtp)) {
+    const tr = appointment.locale === "tr";
+    const when = `${appointment.preferredDate} ${appointment.preferredTime}`;
+    const approved = decision === "approved";
+    try {
+      await sendContactNotificationEmail({
+        smtp,
+        to: appointment.email,
+        subject: tr
+          ? approved ? "Randevunuz onaylandı" : "Randevu talebiniz hakkında"
+          : approved ? "Your appointment is confirmed" : "About your appointment request",
+        text: tr
+          ? approved
+            ? `Merhaba ${appointment.name},\n\n${when} için randevu talebiniz onaylandı. Görüşme bağlantısını ayrıca e-posta ile göndereceğim.\n\nTayfun Türkmen`
+            : `Merhaba ${appointment.name},\n\n${when} için randevu talebinizi bu tarihte karşılayamıyorum. Farklı bir zaman için yeni talep oluşturabilirsiniz.\n\nTayfun Türkmen`
+          : approved
+            ? `Hi ${appointment.name},\n\nYour appointment request for ${when} is confirmed. I will send the meeting link in a separate e-mail.\n\nTayfun Türkmen`
+            : `Hi ${appointment.name},\n\nUnfortunately I can't take your appointment at ${when}. Feel free to send a new request for another time.\n\nTayfun Türkmen`,
+      });
+      emailed = true;
+    } catch (error) {
+      console.warn("Appointment decision email failed", error instanceof Error ? error.message : "unknown");
+    }
+  }
+
+  revalidatePath("/[locale]/admin", "page");
+  return { ok: true, emailed };
+}
+
+export async function deleteAppointmentAdmin(id: number): Promise<AdminResult> {
+  if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };
+  const safeId = Number(id);
+  if (!Number.isFinite(safeId) || safeId < 1) return { ok: false, error: "invalid" };
+  const ok = await deleteAppointmentRequest(safeId);
+  if (!ok) return { ok: false, error: "db" };
+  return { ok: true, message: "deleted" };
+}
 
 export async function publishAdminPost(locale: string, slug: string): Promise<AdminResult> {
   if (!(await isAdminAuthenticated())) return { ok: false, error: "locked" };

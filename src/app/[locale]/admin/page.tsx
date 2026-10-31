@@ -5,6 +5,7 @@ import {
   getAdminSmtpSettings,
   getPublicSiteSettings,
   listAdminBlogPosts,
+  listAppointmentRequests,
   listContactMessages,
   listCronRuns,
   pingD1,
@@ -33,16 +34,17 @@ export default async function AdminPage({ params }: Props) {
   const d1Connected = session ? Boolean(await pingD1()) : false;
   const load = Boolean(session) && d1Connected;
 
-  const [posts, cronRuns, contactMessages, marketing, ai, smtp] = load
+  const [posts, cronRuns, contactMessages, appointments, marketing, ai, smtp] = load
     ? await Promise.all([
         listAdminBlogPosts(100),
         listCronRuns(15),
         listContactMessages(80),
+        listAppointmentRequests(100),
         getPublicSiteSettings(),
         getAdminAiSettings(),
         getAdminSmtpSettings(),
       ])
-    : [[], [], [], null, null, null];
+    : [[], [], [], [], null, null, null];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
@@ -71,6 +73,17 @@ export default async function AdminPage({ params }: Props) {
           aiModel: ai?.aiModel ?? "",
           hasAiApiKey: Boolean(ai?.aiApiKey),
         }}
+        initialAppointments={appointments.map((a) => ({
+          id: a.id,
+          name: a.name,
+          email: a.email,
+          preferredDate: a.preferredDate,
+          preferredTime: a.preferredTime,
+          topic: a.topic,
+          locale: a.locale,
+          status: a.status,
+          createdAt: a.createdAt,
+        }))}
         initialContactMessages={contactMessages.map((m) => ({
           id: m.id,
           name: m.name,

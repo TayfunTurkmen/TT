@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/routing";
-import { paymentLogoBand, seller } from "@/lib/business";
+import { seller } from "@/lib/business";
 import { categories } from "@/lib/cms";
 import { LINKEDIN_PROFILE_URL } from "@/lib/social";
 
@@ -82,36 +82,15 @@ export async function SiteFooter({ locale }: Props) {
         </nav>
         <nav className="grid content-start gap-2.5">
           <p className={headingClass}>{tr ? "Yasal" : "Legal"}</p>
-          <Link href="/distance-sales-agreement" className={linkClass}>{tr ? "Mesafeli Satış Sözleşmesi" : "Distance Sales Agreement"}</Link>
-          <Link href="/pre-information" className={linkClass}>{tr ? "Ön Bilgilendirme Formu" : "Pre-Information Form"}</Link>
-          <Link href="/cancellation-refund" className={linkClass}>{tr ? "İptal ve İade Koşulları" : "Cancellation & Refunds"}</Link>
           <Link href="/privacy-policy" className={linkClass}>{tr ? "Gizlilik Politikası" : "Privacy Policy"}</Link>
           <Link href="/cookie-policy" className={linkClass}>{tr ? "Çerez Politikası" : "Cookie Policy"}</Link>
           <Link href="/terms" className={linkClass}>{tr ? "Kullanım Şartları" : "Terms"}</Link>
         </nav>
       </div>
       <div className="border-t border-[var(--border)]">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-5 text-xs text-[var(--muted)] sm:px-6 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-5 text-xs text-[var(--muted)] sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>© {new Date().getFullYear()} Tayfun Türkmen. {t("rights")}</p>
-          <div className="flex flex-wrap items-center gap-2" aria-label={tr ? "Güvenli ödeme" : "Secure payment"}>
-            <span className="mr-1 inline-flex items-center gap-1.5">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <rect x="4" y="10" width="16" height="11" rx="2" />
-                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-              </svg>
-              {tr ? "Güvenli ödeme" : "Secure payment"}
-            </span>
-            {paymentLogoBand ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={paymentLogoBand} alt="iyzico ile Öde · Visa · Mastercard · Troy" className="h-6 w-auto" />
-            ) : (
-              ["iyzico ile Öde", "Visa", "Mastercard", "Troy", "American Express"].map((brand) => (
-                <span key={brand} className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-0.5 font-medium text-[var(--text)]">
-                  {brand}
-                </span>
-              ))
-            )}
-          </div>
+          <p>{t("built")}</p>
         </div>
       </div>
     </footer>
