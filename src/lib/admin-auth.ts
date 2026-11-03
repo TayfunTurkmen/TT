@@ -46,7 +46,19 @@ export type AdminSession = { username: string; expiresAt: number };
 type SessionPayload = { sub: string; iat: number; exp: number; fp: string };
 
 function env(name: string): string {
-  return (process.env[name] ?? "").trim();
+  let val = (process.env[name] ?? "").trim();
+  // Strip surrounding quotes if entered in Coolify UI
+  if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+    val = val.slice(1, -1).trim();
+  }
+  // Strip accidental "KEY=" prefix if user pasted the entire line into Coolify's value field
+  if (val.startsWith(`${name}=`)) {
+    val = val.slice(name.length + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1).trim();
+    }
+  }
+  return val;
 }
 
 function loadConfig(): { config: AdminConfig | null; status: AdminAuthStatus } {
@@ -56,12 +68,29 @@ function loadConfig(): { config: AdminConfig | null; status: AdminAuthStatus } {
   const sessionSecret = env("ADMIN_SESSION_SECRET");
   const totpRaw = env("ADMIN_TOTP_SECRET").replace(/\s+/g, "").toUpperCase();
 
-  if (username.length < 3) problems.push("ADMIN_USERNAME");
+  if (!username) {
+    problems.push("ADMIN_USERNAME (ortam değişkeni bulunamadı / not set)");
+  } else if (username.length < 3) {
+    problems.push("ADMIN_USERNAME (en az 3 karakter olmalı / min 3 chars)");
+  }
+
   const match = PASSWORD_HASH_PATTERN.exec(passwordHashRaw);
-  if (!match) problems.push("ADMIN_PASSWORD_HASH");
-  if (sessionSecret.length < MIN_SESSION_SECRET_LENGTH) problems.push("ADMIN_SESSION_SECRET");
+  if (!passwordHashRaw) {
+    problems.push("ADMIN_PASSWORD_HASH (ortam değişkeni bulunamadı / not set)");
+  } else if (!match) {
+    problems.push("ADMIN_PASSWORD_HASH (geçersiz format: 'npm run admin:hash' ile üretilen 'scrypt:salt:hash' olmalı)");
+  }
+
+  if (!sessionSecret) {
+    problems.push("ADMIN_SESSION_SECRET (ortam değişkeni bulunamadı / not set)");
+  } else if (sessionSecret.length < MIN_SESSION_SECRET_LENGTH) {
+    problems.push(`ADMIN_SESSION_SECRET (en az ${MIN_SESSION_SECRET_LENGTH} karakter olmalı, şu an: ${sessionSecret.length})`);
+  }
+
   // An invalid 2FA secret must not silently disable 2FA: refuse to log in instead.
-  if (totpRaw && !/^[A-Z2-7]{16,}$/.test(totpRaw)) problems.push("ADMIN_TOTP_SECRET");
+  if (totpRaw && !/^[A-Z2-7]{16,}$/.test(totpRaw)) {
+    problems.push("ADMIN_TOTP_SECRET (geçersiz Base32 2FA secret formatı)");
+  }
 
   const status: AdminAuthStatus = {
     configured: problems.length === 0,
