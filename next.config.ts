@@ -33,9 +33,17 @@ const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
 ];
 
+const deploymentId =
+  process.env.DEPLOYMENT_ID ||
+  process.env.COOLIFY_DEPLOYMENT_UUID ||
+  process.env.SOURCE_COMMIT ||
+  process.env.GIT_COMMIT_SHA ||
+  undefined;
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   output: "standalone",
+  ...(deploymentId ? { deploymentId } : {}),
   outputFileTracingIncludes: {
     "/**": ["./node_modules/@swc/helpers/**/*"],
   },
