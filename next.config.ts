@@ -62,4 +62,9 @@ const nextConfig: NextConfig = {
 
 export default withNextIntl(nextConfig);
 
-import("@opennextjs/cloudflare").then((m) => m.initOpenNextCloudflareForDev());
+// Only initialize Cloudflare workerd bindings during local development when not targeting PostgreSQL
+if (process.env.NODE_ENV === "development" && !process.env.DATABASE_URL) {
+  import("@opennextjs/cloudflare")
+    .then((m) => m.initOpenNextCloudflareForDev?.())
+    .catch(() => {});
+}
