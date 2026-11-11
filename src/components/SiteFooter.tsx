@@ -93,11 +93,11 @@ export async function SiteFooter({ locale }: Props) {
           <div className="flex flex-wrap items-center gap-4">
             <p>{t("built")}</p>
             <a
-              href="https://www.tyfunlabs.com"
+              href="https://www.tynet.io"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="TyfunLabs"
-              title="TyfunLabs"
+              aria-label="TyNet"
+              title="TyNet"
               className="group inline-flex items-center justify-center text-[var(--muted)] transition-colors duration-200 hover:text-[var(--text)] sm:border-l sm:border-[var(--border)] sm:pl-4"
             >
               <svg
@@ -109,7 +109,7 @@ export async function SiteFooter({ locale }: Props) {
                 className="h-[18px] w-[18px] shrink-0 transition-transform duration-300 group-hover:scale-110"
               >
                 <defs>
-                  <linearGradient id="tyfunlabs-orbit-tt" x1="4" y1="24" x2="28" y2="10" gradientUnits="userSpaceOnUse">
+                  <linearGradient id="tynet-orbit-tt" x1="4" y1="24" x2="28" y2="10" gradientUnits="userSpaceOnUse">
                     <stop offset="0%" stopColor="#06b6d4" />
                     <stop offset="50%" stopColor="#3b82f6" />
                     <stop offset="100%" stopColor="#8b5cf6" />
@@ -117,8 +117,8 @@ export async function SiteFooter({ locale }: Props) {
                 </defs>
                 <path
                   d="M5.6 22.6A11.4 4.4 -24 0 1 26.4 13.4"
-                  stroke="url(#tyfunlabs-orbit-tt)"
-                  strokeWidth="1.7"
+                  stroke="url(#tynet-orbit-tt)"
+                  strokeWidth="1.5"
                   strokeLinecap="round"
                   className="opacity-40 transition-opacity duration-300 group-hover:opacity-75"
                 />
@@ -126,11 +126,14 @@ export async function SiteFooter({ locale }: Props) {
                 <path d="M13.4 13.5L18.2 10.7V25.5L13.4 28V13.5Z" fill="currentColor" />
                 <path
                   d="M26.4 13.4A11.4 4.4 -24 0 1 5.6 22.6"
-                  stroke="url(#tyfunlabs-orbit-tt)"
-                  strokeWidth="2.3"
+                  stroke="url(#tynet-orbit-tt)"
+                  strokeWidth="2"
                   strokeLinecap="round"
-                  className="opacity-75 transition-opacity duration-300 group-hover:opacity-100"
+                  className="opacity-80 transition-opacity duration-300 group-hover:opacity-100"
                 />
+                <circle cx="5.6" cy="22.6" r="2.4" fill="#06b6d4" />
+                <circle cx="26.4" cy="13.4" r="2.2" fill="#8b5cf6" />
+                <circle cx="22.5" cy="19.4" r="2" fill="#3b82f6" />
               </svg>
             </a>
           </div>
