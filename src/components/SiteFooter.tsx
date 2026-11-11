@@ -88,9 +88,56 @@ export async function SiteFooter({ locale }: Props) {
         </nav>
       </div>
       <div className="border-t border-[var(--border)]">
-        <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-5 text-xs text-[var(--muted)] sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-5 text-xs text-[var(--muted)] sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>© {new Date().getFullYear()} Tayfun Türkmen. {t("rights")}</p>
-          <p>{t("built")}</p>
+          <div className="flex flex-wrap items-center gap-4">
+            <p>{t("built")}</p>
+            <a
+              href="https://www.tyfunlabs.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              dir="ltr"
+              aria-label="TyfunLabs"
+              title="TyfunLabs"
+              className="group inline-flex items-center gap-1.5 text-xs text-[var(--muted)] transition-colors duration-200 hover:text-[var(--text)] sm:border-l sm:border-[var(--border)] sm:pl-4"
+            >
+              <svg
+                viewBox="0 0 32 32"
+                width="16"
+                height="16"
+                fill="none"
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover:scale-105"
+              >
+                <defs>
+                  <linearGradient id="tyfunlabs-orbit-tt" x1="4" y1="24" x2="28" y2="10" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#06b6d4" />
+                    <stop offset="50%" stopColor="#3b82f6" />
+                    <stop offset="100%" stopColor="#8b5cf6" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M5.6 22.6A11.4 4.4 -24 0 1 26.4 13.4"
+                  stroke="url(#tyfunlabs-orbit-tt)"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  className="opacity-40 transition-opacity duration-300 group-hover:opacity-75"
+                />
+                <path d="M7 4.5H27L24.6 9H4.6L7 4.5Z" fill="currentColor" />
+                <path d="M13.4 13.5L18.2 10.7V25.5L13.4 28V13.5Z" fill="currentColor" />
+                <path
+                  d="M26.4 13.4A11.4 4.4 -24 0 1 5.6 22.6"
+                  stroke="url(#tyfunlabs-orbit-tt)"
+                  strokeWidth="2.3"
+                  strokeLinecap="round"
+                  className="opacity-75 transition-opacity duration-300 group-hover:opacity-100"
+                />
+              </svg>
+              <span className="font-semibold tracking-tight">
+                Tyfun<span className="group-hover:bg-gradient-to-r group-hover:from-cyan-600 group-hover:to-violet-600 dark:group-hover:from-cyan-400 dark:group-hover:to-violet-400 group-hover:bg-clip-text group-hover:text-transparent">Labs</span>
+              </span>
+            </a>
+          </div>
         </div>
       </div>
     </footer>
