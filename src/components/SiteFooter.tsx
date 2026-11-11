@@ -96,18 +96,17 @@ export async function SiteFooter({ locale }: Props) {
               href="https://www.tyfunlabs.com"
               target="_blank"
               rel="noopener noreferrer"
-              dir="ltr"
               aria-label="TyfunLabs"
               title="TyfunLabs"
-              className="group inline-flex items-center gap-1.5 text-xs text-[var(--muted)] transition-colors duration-200 hover:text-[var(--text)] sm:border-l sm:border-[var(--border)] sm:pl-4"
+              className="group inline-flex items-center justify-center text-[var(--muted)] transition-colors duration-200 hover:text-[var(--text)] sm:border-l sm:border-[var(--border)] sm:pl-4"
             >
               <svg
                 viewBox="0 0 32 32"
-                width="16"
-                height="16"
+                width="18"
+                height="18"
                 fill="none"
                 aria-hidden="true"
-                className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover:scale-105"
+                className="h-[18px] w-[18px] shrink-0 transition-transform duration-300 group-hover:scale-110"
               >
                 <defs>
                   <linearGradient id="tyfunlabs-orbit-tt" x1="4" y1="24" x2="28" y2="10" gradientUnits="userSpaceOnUse">
@@ -133,9 +132,6 @@ export async function SiteFooter({ locale }: Props) {
                   className="opacity-75 transition-opacity duration-300 group-hover:opacity-100"
                 />
               </svg>
-              <span className="font-semibold tracking-tight">
-                Tyfun<span className="group-hover:bg-gradient-to-r group-hover:from-cyan-600 group-hover:to-violet-600 dark:group-hover:from-cyan-400 dark:group-hover:to-violet-400 group-hover:bg-clip-text group-hover:text-transparent">Labs</span>
-              </span>
             </a>
           </div>
         </div>
