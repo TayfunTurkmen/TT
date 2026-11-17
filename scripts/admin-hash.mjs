@@ -8,20 +8,49 @@
  * so it does not end up in shell history.
  */
 import { randomBytes, scryptSync } from "node:crypto";
-import readline from "node:readline";
 
 const MIN_PASSWORD_LENGTH = 12;
 
+// Reads one line straight from the terminal in raw mode. readline's terminal mode
+// misbehaves in some Windows terminals (the prompt is erased and stdin closes early).
 function ask(question, { hidden = false } = {}) {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+  return new Promise((resolve, reject) => {
+    const stdin = process.stdin;
+    let value = "";
     process.stdout.write(question);
-    if (hidden) rl._writeToOutput = () => {};
-    rl.question("", (answer) => {
-      rl.close();
-      if (hidden) process.stdout.write("\n");
-      resolve(answer);
-    });
+    stdin.setRawMode(true);
+    stdin.setEncoding("utf8");
+    stdin.resume();
+    const finish = (err) => {
+      stdin.off("data", onData);
+      stdin.off("end", onEnd);
+      stdin.setRawMode(false);
+      stdin.pause();
+      process.stdout.write("\n");
+      if (err) reject(err);
+      else resolve(value);
+    };
+    const onEnd = () => finish(new Error("Input closed before a value was entered."));
+    const onData = (chunk) => {
+      for (const ch of chunk) {
+        if (ch === "\r" || ch === "\n") return finish();
+        if (ch === "\u0003") {
+          process.stdout.write("\n");
+          process.exit(130); // Ctrl+C
+        }
+        if (ch === "\u007f" || ch === "\b") {
+          if (value) {
+            value = value.slice(0, -1);
+            if (!hidden) process.stdout.write("\b \b");
+          }
+        } else if (ch >= " ") {
+          value += ch;
+          if (!hidden) process.stdout.write(ch);
+        }
+      }
+    };
+    stdin.on("data", onData);
+    stdin.once("end", onEnd);
   });
 }
 
